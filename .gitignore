@@ -1,0 +1,14 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+/pandora
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+
