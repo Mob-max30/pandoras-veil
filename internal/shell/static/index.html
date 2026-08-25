@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANDORA'S VEIL | Secure Channel</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header Window Bar -->
+    <header class="window-header">
+      <div class="window-controls">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+      <div class="window-title">
+        PANDORA'S VEIL | [ v1.2.5 ] Secure Channel - <span id="header-channel-title">Main</span>
+      </div>
+    </header>
+
+    <!-- Main 3-Column Body Workspace -->
+    <main class="workspace-grid">
+      
+      <!-- LEFT COLUMN: DEVICE IDENTITY & CHANNELS -->
+      <aside class="left-column">
+        <!-- Device Identity Box -->
+        <div class="cyber-box identity-box">
+          <div class="box-header">── DEVICE IDENTITY ──</div>
+          <div class="box-body">
+            <div class="field"><span class="label">HOST:</span> <span class="val cyan" id="host-handle">PV-PRANAV</span></div>
+            <div class="field"><span class="label">FINGERPRINT:</span></div>
+            <div class="field"><span class="val yellow" id="host-fingerprint">1E42-2834-A602-F91D</span></div>
+            <div class="field"><span class="label">STATUS:</span> <span class="val green">ONLINE (AES-256)</span></div>
+          </div>
+        </div>
+
+        <!-- Channels & Contacts Directory Box -->
+        <div class="cyber-box channels-box">
+          <div class="box-header">── CHANNELS ──</div>
+          <div class="box-body">
+            <div class="section-title">Active Messages</div>
+            <ul class="channel-list" id="dm-list">
+              <li class="channel-item active" data-handle="PV-UJWAL"><span class="dot online"></span> PV-UJWAL</li>
+              <li class="channel-item" data-handle="PV-PAVAN"><span class="dot offline"></span> PV-PAVAN</li>
+            </ul>
+
+            <div class="section-title">Group Chats</div>
+            <ul class="channel-list" id="group-list">
+              <li class="channel-item highlight" data-group="#Development"><span class="hash">#</span>Development <span class="dot online"></span></li>
+              <li class="channel-item" data-group="#Alpha_Team"><span class="hash">#</span>Alpha_Team</li>
+              <li class="channel-item" data-group="#Ops_Center"><span class="hash">#</span>Ops_Center</li>
+              <li class="channel-item" data-group="#General"><span class="hash">#</span>General</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER MAIN PANE: CHAT & MEDIA STREAM -->
+      <section class="center-column">
+        <div class="cyber-box stream-box">
+          <div class="box-header">── CENTER MAIN PANE (Width: 55%) ──</div>
+          <div class="stream-messages" id="message-container">
+            
+            <!-- Sample Bubble Received (Friend) -->
+            <div class="chat-bubble-row left">
+              <div class="bubble-meta">[14:32] <span class="sender-name">PV-UJWAL</span></div>
+              <div class="chat-bubble left-bubble">
+                Deployment complete for v1.2.5.
+              </div>
+            </div>
+
+            <!-- Sample Bubble Sent (YOU) -->
+            <div class="chat-bubble-row right">
+              <div class="bubble-meta">[14:38] <span class="you-badge">[YOU]</span></div>
+              <div class="chat-bubble right-bubble">
+                Confirmed. Monitoring throughput.
+              </div>
+            </div>
+
+            <!-- Sample Received (Friend) -->
+            <div class="chat-bubble-row left">
+              <div class="bubble-meta">[14:40] <span class="sender-name">PV-UJWAL</span></div>
+              <div class="chat-bubble left-bubble">
+                Need final verification on the protocol patch.
+              </div>
+            </div>
+
+            <!-- Sample Sent (YOU) -->
+            <div class="chat-bubble-row right">
+              <div class="bubble-meta">[YOU]</div>
+              <div class="chat-bubble right-bubble">
+                Pulling latest diff now...
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: SECRET DEPOSIT & POLICY INSPECTOR -->
+      <aside class="right-column">
+        <div class="cyber-box inspector-box">
+          <div class="box-header">── SECRET DEPOSIT & POLICY INSPECTOR ──</div>
+          <div class="box-body">
+            <div class="policy-badge">POLICY: BURST_MODE_ALPHA</div>
+          </div>
+        </div>
+
+        <div class="cyber-box deposit-box">
+          <div class="box-header">── DEPOSIT OBJECT ──</div>
+          <div class="box-body">
+            <div class="object-id">Auth_Key_74</div>
+            <div class="ttl-label">TTL EXPIRATION</div>
+            <div class="ttl-selector">
+              <button class="ttl-btn" data-ttl="60">[ 60s ]</button>
+              <button class="ttl-btn active" data-ttl="300">[ *300s* ]</button>
+              <button class="ttl-btn" data-ttl="3600">[ 1h ]</button>
+              <button class="ttl-btn" data-ttl="86400">[ 24h ]</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cyber-box burn-box">
+          <div class="box-header">── BURN-AFTER-READING ──</div>
+          <div class="box-body">
+            <div class="burn-row">
+              <span class="burn-title">Redis GETDEL</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="burn-toggle" checked>
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div class="burn-status">[ <span class="green" id="burn-text">*ON*</span> | OFF ]</div>
+          </div>
+        </div>
+
+        <div class="cyber-box key-box">
+          <div class="box-header">── KEY METADATA ──</div>
+          <div class="box-body">
+            <div class="field"><span class="label">Created:</span> <span class="val">PV-PRANAV ..</span></div>
+            <div class="field"><span class="label">Expires:</span> <span class="val">12-05-2026 ..</span></div>
+            <div class="field"><span class="label">Recipient:</span> <span class="val" id="recip-meta">PV-UJWAL ..</span></div>
+            <div class="field"><span class="label">Cipher:</span> <span class="val green">AES-256 (age)</span></div>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+
+    <!-- Bottom Command & Shortcut Bar -->
+    <footer class="command-bar">
+      <div class="command-header">── [ <span id="cmd-channel-tag">#Development</span> ] ──</div>
+      <div class="command-input-row">
+        <span class="prompt-prefix">pveil &gt;</span>
+        <input type="text" id="cmd-input" placeholder="type secure message or /f to attach file..." autocomplete="off" autofocus>
+        <button id="file-picker-btn" class="cmd-action-btn">/f attach</button>
+      </div>
+      <div class="shortcut-legend">
+        <span class="key">[Tab]</span> Switch Pane &nbsp;&nbsp;
+        <span class="key">[Ctrl+N]</span> New Group &nbsp;&nbsp;
+        <span class="key">[Ctrl+S]</span> Search &nbsp;&nbsp;
+        <span class="key">[Ctrl+K]</span> SecDeposit &nbsp;&nbsp;
+        <span class="key">[Ctrl+Q]</span> Exit
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
