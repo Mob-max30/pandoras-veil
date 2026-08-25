@@ -1,10 +1,11 @@
 # 🔒 Pandora's Veil
-### Device-Bound Zero-Knowledge Secret Relay & Real-Time Terminal Chat
+### Device-Bound Zero-Knowledge Secret Relay, Cyberpunk Web Dashboard & Real-Time E2E Chat
 
 [![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Cryptography](https://img.shields.io/badge/Crypto-filippo.io%2Fage-black?style=flat)](https://filippo.io/age)
 [![Backend Relay](https://img.shields.io/badge/Cloud%20Relay-Render%20Live-46E3B7?style=flat)](https://pandoras-veil.onrender.com/health)
 [![Storage](https://img.shields.io/badge/Storage-Redis%20GETDEL-red?style=flat&logo=redis)](https://redis.io/)
+[![Defense](https://img.shields.io/badge/Firewall-DNS%20Rebinding%20%26%20CSRF%20Protected-green.svg)](#-local-security-firewall--defense-in-depth)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > **"The share link locates the secret. The authorized device authorizes decryption."**
@@ -21,12 +22,14 @@
 1. **Per-Visit Browser Trust**: In-browser JavaScript encryption forces users to re-trust the web server on every page load. A compromised web server or CDN can inject malicious JS to intercept secrets.
 2. **Link-Is-The-Only-Guard**: Anyone who acquires a traditional paste link (via Slack/Discord leaks, shoulder surfing, or compromised clipboard) can decrypt the secret.
 3. **No True Device Authorization**: Standard secret bins protect data in transit, but cannot guarantee that only a specific physical laptop or server can unlock the payload.
+4. **Localhost CSRF & DNS Rebinding Vulnerabilities**: Local web interfaces often leave local ports open to cross-origin requests from arbitrary websites open in other browser tabs.
 
 ### Our Solution
 - **Native Compiled Client (`pv`)**: Cryptography executes in a compiled Go binary. Trust is established once at installation, completely bypassing browser JavaScript vulnerabilities.
 - **Device-Bound Encryption (`filippo.io/age`)**: Secrets are encrypted locally targeting the recipient's physical X25519 identity. Possession of the URL alone grants zero access—decryption strictly requires the recipient's local private key.
 - **Mandatory Hard-Stop Fingerprint Verification**: Senders must explicitly verify the recipient's 8-character device fingerprint out-of-band before encryption occurs, completely defeating relay key-substitution (MITM) attacks.
-- **Real-Time WhatsApp-Style Terminal Chat (`pv chat`)**: High-speed, end-to-end encrypted messaging stream directly in the command terminal with instant delivery, timestamps, and message bubble alignment (supporting both 1-on-1 and Multi-Party Group Chat).
+- **Cyberpunk Web Dashboard (`pv run`)**: An embedded, zero-setup web interface running locally on `http://localhost:8080` protected by a strict DNS Rebinding & Localhost CSRF security firewall.
+- **Real-Time WhatsApp-Style Terminal Chat (`pv chat`)**: High-speed, end-to-end encrypted messaging stream with dynamic auto-resize, speech bubble boxes, and offline inbox queueing.
 - **Live Deployed Cloud Relay**: Backed by a high-availability cloud backend at `https://pandoras-veil.onrender.com`.
 
 ---
@@ -99,13 +102,15 @@ Device Identity (Verified on Relay):
 Security Tip: Share your Handle or Fingerprint out-of-band with senders to verify authenticity.
 ```
 
-### 4. Cyberpunk Local Web Dashboard (`pv run`)
+---
 
-For users who prefer a modern browser graphical interface over the command line, Pandora's Veil includes a **built-in Cyberpunk 3-Column Web Dashboard**:
+### 4. 🌐 Cyberpunk Local Web Dashboard (`pv run`)
+
+For users who prefer a rich graphical interface over the command line, Pandora's Veil includes a **built-in Cyberpunk 3-Column Web Dashboard**:
 
 ```powershell
 pv run
-# or: pv serve
+# or: pv serve --port 8080
 ```
 
 ```text
@@ -113,20 +118,32 @@ pv run
   🌐 PANDORA'S VEIL WEB DASHBOARD RUNNING
   👉 Local URL:  http://localhost:8080
   🔒 Device:     PV-UJWAL (Fingerprint: BA64-5843)
+  🛡️  Firewall:   DNS Rebinding & Localhost CSRF Protected (Token: 9a734cd4..)
   ☁️  Relay:      https://pandoras-veil.onrender.com
-  ⚡ Zero-Knowledge E2E Encryption Active (age/X25519)
+  ⚡ Zero-Knowledge E2E Encryption Active (Native Go age/X25519)
 ================================================================================
+
+[i] Press [Ctrl+C] to stop the local web server.
 ```
 
-- Automatically opens your default browser at `http://localhost:8080`.
-- **Zero-Knowledge Security**: Your device private key stays on your local machine—all encryption and decryption occur locally inside the native Go daemon before ciphertext is delivered to the cloud relay.
-- **3-Column Cyberpunk UI**: Device identity, channels & group chats, speech bubble conversation pane, secret deposit & policy inspector with animated toggles.
+#### Key Architecture & Security Guarantees:
+1. **100% Native Go Cryptography (Zero In-Browser Crypto)**:
+   - The browser tab is strictly a thin presentation client.
+   - All `age` / X25519 encryption and decryption strictly execute inside the local Go binary via `/api/send`, `/api/deposit`, and `/api/stream`.
+   - Your private key never touches browser JavaScript or leaves the Go process memory.
+2. **Build-Time Asset Embedding (`embed.FS`)**:
+   - All HTML, CSS, and JS assets are compiled directly into the binary at build time. Zero runtime network dependencies.
+3. **Localhost CSRF & DNS Rebinding Security Firewall**:
+   - **DNS Rebinding Defense**: Strict `Host` header validation rejects foreign hostnames with `403 Forbidden`.
+   - **Localhost CSRF Defense**: Blocks any cross-origin requests from other browser tabs using strict `Origin` and `Referer` checks.
+   - **Ephemeral Session Token**: Generates a cryptographically random 192-bit token required (`X-Pandora-Token`) for all local API calls.
+   - **Security Headers**: `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`.
 
 ---
 
-### 5. Real-Time Encrypted Live Terminal Chat
+### 5. 💬 Real-Time Encrypted Live Terminal Chat (`pv chat`)
 
-Start an interactive, end-to-end encrypted chat with another user or group on the live cloud relay:
+Start an interactive, end-to-end encrypted chat with another user or group directly in your command terminal:
 
 #### 1-on-1 Private Chat:
 **Alice runs:**
@@ -147,26 +164,45 @@ pv chat --with BOB,CHARLIE
 pv chat --group BOB,CHARLIE
 ```
 
-**Live WhatsApp-Style Interface:**
+#### Terminal Cyberpunk 3-Column Interface:
 ```text
-================================================================================
-  🔒 PANDORA LIVE RELAY | End-to-End Encrypted Session with BOB
-  Device Fingerprint: [915E-B66D] | Zero Knowledge Relay Active
-  Type your message and press [Enter] to send live. Press [Ctrl+C] to exit.
-================================================================================
+                  🔴 🟡 🟢   PANDORA'S VEIL | [ v1.2.5 ] Secure Channel - Main
 
-[15:34:05] [BOB] ❯ Hello Alice! Is this session end-to-end encrypted?
-                                  Yes, 100% encrypted! [YOU] [15:34:10]
+╭─ DEVICE IDENTITY ───────╮ ╭─ CENTER MAIN PANE (Width: 55%) ────╮ ╭─ SECRET DEPOSIT & POLICY ──╮
+│ HOST: PV-UJWAL          │ │ ╭─[14:32] Aria Chen ─────────────╮ │ │ POLICY: BURST_MODE_ALPHA   │
+│ FINGERPRINT:            │ │ │ Deployment complete for v1.2.5.│ │ ╰────────────────────────────╯
+│ 1E42-2834-A602-F91D     │ │ ╰────────────────────────────────╯ │ ╭─ DEPOSIT OBJECT ───────────╮
+│ STATUS: ONLINE (AES-256)│ │                                    │ │   Auth_Key_74              │
+╰─────────────────────────╯ │ ╭────────────────[14:38] [YOU]───╮ │ │   TTL EXPIRATION           │
+╭─ CHANNELS ──────────────╮ │ │ Confirmed. Monitoring throughput. │ │   [ 60s | *300s* | 1h | 24h]│
+│ Active Messages         │ │ ╰────────────────────────────────╯ │ ╰────────────────────────────╯
+│  ● Aria Chen ●          │ │                                    │ ╭─ BURN-AFTER-READING ───────╮
+│ Group Chats             │ │ ╭─[14:40] Dr. Alistair K. ───────╮ │ │   Redis GETDEL   [===●]    │
+│ #Development ●          │ │ │ Need final verification on patch│ │ │   [ *ON* | OFF ]           │
+│  #Alpha_Team            │ │ ╰────────────────────────────────╯ │ ╰────────────────────────────╯
+│  #Ops_Center            │ │                                    │ ╭─ KEY METADATA ─────────────╮
+│  #General               │ │                                    │ │   Created:   PV-UJWAL ..   │
+│                         │ │                                    │ │   Expires:   24 Hours      │
+╰─────────────────────────╯ ╰────────────────────────────────────╯ ╰────────────────────────────╯
 
-[ALICE] > 
+ ╭─ [ #Development ] ───────────────────────────────────────────────────────────────────────────╮
+ │ pveil > _                                                                                    │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+  [Tab] Switch Pane    [Ctrl+N] New Group    [Ctrl+S] Search    [Ctrl+K] SecDeposit    [Ctrl+Q] Exit
 ```
-- **Incoming Messages**: Formatted on the left edge with sender handle.
-- **Outgoing Messages**: Right-aligned on the terminal screen with pink `[YOU]` badge, green text, and gray timestamps.
-- **Group Encryption**: Messages in group chat are natively encrypted for all member device public keys using `filippo.io/age` multi-recipient encryption.
+
+- **Dynamic Auto-Resize**: Automatically adapts and scales all 3 columns and boxes when maximizing or resizing the window.
+- **Offline Inbox Queueing**: Messages sent while a peer is disconnected are safely queued in Redis with TTL and automatically replayed into the speech bubble history upon reconnecting (`GET /inbox`).
+- **Interactive Slash Commands**:
+  - `/ttl <60s|300s|1h|24h>` : Update TTL expiration live.
+  - `/burn` : Live toggle Burn-After-Reading (`ON` $\leftrightarrow$ `OFF`).
+  - `/clear` : Clear chat message log.
+  - `/help` : Display commands help.
+  - `/quit` or `/exit` : Cleanly exit the alternate screen buffer.
 
 ---
 
-### 5. Sending Device-Bound Secrets
+### 6. 📤 Sending Device-Bound Secrets
 
 #### Sending a Text Secret:
 ```powershell
@@ -208,7 +244,7 @@ pv send --to BOB --burn "One-Time Recovery Code: 839201"
 
 ---
 
-### 6. Decrypting Secrets on Authorized Device
+### 7. 🔓 Decrypting Secrets on Authorized Device
 
 On Bob's device:
 
@@ -250,6 +286,7 @@ pv read pbqvqkuyrnaprbwqgyuin7nwy
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
+| `pv run` | `pv run [--port <port>] [--open]` | Launches local Cyberpunk Web Dashboard at `http://localhost:8080`. |
 | `pv init` | `pv init [--handle <name>] [--force]` | Generates local X25519 identity and registers public key on relay. |
 | `pv identity` | `pv identity` | Displays device handle, public key, and fingerprint verified against live relay. |
 | `pv send` | `pv send --to <handle> [options] [text]` | Encrypts payload locally for target device and deposits ciphertext on relay. |
@@ -264,6 +301,7 @@ pv read pbqvqkuyrnaprbwqgyuin7nwy
 - `--save <path>`: Write decrypted plaintext directly to file (with `0600` permissions).
 - `--burn`: Enable Burn-After-Reading (atomically destroys ciphertext after 1st read).
 - `--ttl <seconds>`: Set expiration lifespan (default: `86400` = 24 hours).
+- `--port <port>`: Port to host local web dashboard (default: `8080`).
 - `--relay <url>`: Custom relay URL (default: `https://pandoras-veil.onrender.com`).
 - `--config <path>`: Custom local identity configuration file path.
 
@@ -285,6 +323,7 @@ pv read pbqvqkuyrnaprbwqgyuin7nwy
         │                                             │                                            │
         │─── 3. Uploads Ciphertext (Base64) ─────────►│                                            │
         │                                       [Redis GETDEL]                                     │
+        │                                       [Inbox Queue]                                      │
         │                                             │                                            │
         │                                             │◄── 4. Bob fetches ciphertext with ID ──────│
         │                                             │─── 5. Returns Ciphertext Blob ────────────►│
@@ -297,10 +336,10 @@ pv read pbqvqkuyrnaprbwqgyuin7nwy
 
 ## 🧪 Testing & Verification
 
-Run the entire test suite across client and server:
+Run the entire test suite across client, web dashboard, and server:
 
 ```powershell
-# Run CLI & Client test suites
+# Run CLI, Client, Crypto, Storage, and Web test suites
 go test -v ./...
 
 # Run Backend Relay test suite
@@ -313,9 +352,9 @@ cd ..
 
 ## 👥 Project Team
 
-- **Ujwal** — CLI/TUI, Real-Time Terminal Chat, Interactive UX & Demo Lead
-- **Pavan** — Backend Relay, Redis GETDEL/TTL, Cloud Deployment & API Architecture
-- **Pranav** — Cryptographic Architecture, `age` Primitives & Integration
+- **Ujwal** — CLI/TUI, Cyberpunk Web Dashboard, Interactive UX & Demo Lead
+- **Pavan** — Backend Relay, Redis GETDEL/TTL, Offline Inbox Queueing & API Architecture
+- **Pranav** — Cryptographic Architecture, `age` Primitives & Multi-Recipient Integration
 
 ---
 
