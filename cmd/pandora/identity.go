@@ -45,7 +45,15 @@ func runIdentity(args []string, ui *UI, apiClient client.Client) int {
 		return 1
 	}
 
-	fmt.Fprintf(ui.Out, "%sDevice Identity:%s\n", ColorBold, ColorReset)
+	// Verify that this device handle is actively registered on the relay
+	serverKey, err := apiClient.GetKey(idFile.Handle)
+	if err != nil || serverKey.PublicKey != idFile.PublicKey {
+		ui.Error("Device handle '%s' is not registered on the relay server (http://127.0.0.1:8080)!", idFile.Handle)
+		ui.Info("Run 'pv init --handle %s --config %s --force' to register this device on the server.", idFile.Handle, *pathFlag)
+		return 1
+	}
+
+	fmt.Fprintf(ui.Out, "%sDevice Identity (Verified on Relay):%s\n", ColorBold, ColorReset)
 	fmt.Fprintf(ui.Out, "  Handle:      %s%s%s\n", ColorCyan, idFile.Handle, ColorReset)
 	fmt.Fprintf(ui.Out, "  Fingerprint: %s%s%s\n", ColorYellow, idFile.Fingerprint, ColorReset)
 	fmt.Fprintf(ui.Out, "  Public Key:  %s\n", idFile.PublicKey)
