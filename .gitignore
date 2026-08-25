@@ -1,4 +1,4 @@
-# Binaries
+# Binaries & Executables
 *.exe
 *.exe~
 *.dll
@@ -6,14 +6,19 @@
 *.dylib
 bin/
 /pandora
+/pandora-relay
+pv
+pv.exe
+
+# Environment & Logs
+.env
+*.env
+*.log
 
 # OS / Editor
 .DS_Store
 .vscode/
 .idea/
 
-# Local credentials
+# Local Credentials & Secrets
 *.json
-pv
-pv.exe
-
