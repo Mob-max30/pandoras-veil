@@ -121,3 +121,18 @@ func LoadWebSession(configDir string) (*WebSessionData, error) {
 
 	return &data, nil
 }
+
+// ClearWebSession completely removes the stored session data file.
+func ClearWebSession(configDir string) error {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+
+	path, err := defaultSessionPath(configDir, "web_session.json")
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

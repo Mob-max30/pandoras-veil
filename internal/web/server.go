@@ -228,6 +228,9 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 		pubKey = crypto.GetPublicKey(devIdentity)
 		privKey = devIdentity.String()
 		fp = crypto.ComputeFingerprint(pubKey)
+
+		// Wipe session data on fresh account initialization
+		_ = storage.ClearWebSession(s.configDir)
 	}
 
 	// Register with relay server
@@ -358,10 +361,12 @@ func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		_ = os.Remove(idPath)
 	}
 
+	_ = storage.ClearWebSession(s.configDir)
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
-		"message": "Account and device credentials completely deleted.",
+		"message": "Account, keys, and session correspondence completely deleted.",
 	})
 }
 
