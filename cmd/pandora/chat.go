@@ -105,7 +105,9 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	// 6. Background Listener Goroutine (SSE Stream)
+	const chatWidth = 72
+
+	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
 			plaintext, err := crypto.Decrypt(msg.Ciphertext, devIdentity.Identity)
@@ -119,17 +121,19 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 				senderName = *withFlag
 			}
 
-			// Clear current line and render incoming message, then redraw input prompt
-			fmt.Fprintf(ui.Out, "\r\033[K%s[%s]%s %s[%s]:%s %s\n%s[%s] > %s",
+			// Left-aligned incoming bubble (WhatsApp style)
+			incomingMsg := fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
 				ColorDim, timestamp, ColorReset,
 				ColorBold+ColorMagenta, senderName, ColorReset,
 				string(plaintext),
-				ColorBold+ColorCyan, localIdFile.Handle, ColorReset,
 			)
+
+			// Clear current line, print incoming message, and redraw prompt
+			fmt.Fprintf(ui.Out, "\r\033[K%s\n%s[%s] > %s", incomingMsg, ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
 		}, stopCh)
 	}()
 
-	// 7. Foreground Sender Loop
+	// 7. Foreground Sender Loop (Right Aligned)
 	scanner := bufio.NewScanner(ui.In)
 	promptPrompt := func() {
 		fmt.Fprintf(ui.Out, "%s[%s] > %s", ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
@@ -174,12 +178,20 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 		}
 
 		timestamp := time.Now().Format("15:04:05")
-		// Move up, clear line, and reprint with timestamp and delivery checkmark
-		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s[%s]%s %s[You -> %s]%s %s[✓✓]%s %s\n",
-			ColorDim, timestamp, ColorReset,
-			ColorBold+ColorGreen, *withFlag, ColorReset,
-			ColorBold+ColorGreen, ColorReset,
-			text,
+		
+		// Right-aligned outgoing bubble (WhatsApp style)
+		visibleLen := len(text) + len(timestamp) + 12
+		pad := chatWidth - visibleLen
+		if pad < 2 {
+			pad = 2
+		}
+		spaces := strings.Repeat(" ", pad)
+
+		// Move cursor up 1 line, clear it, and print right-aligned sent message
+		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[✓✓] [%s]%s\n",
+			spaces,
+			ColorBold+ColorGreen, text, ColorReset,
+			ColorGreen, timestamp, ColorReset,
 		)
 
 		promptPrompt()
