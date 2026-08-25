@@ -12,3 +12,8 @@ bin/
 .vscode/
 .idea/
 
+# Local credentials
+*.json
+pv
+pv.exe
+
