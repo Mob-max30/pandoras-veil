@@ -1,23 +1,22 @@
 /* ==========================================================================
-   PANDORA'S VEIL — OBSIDIAN & EMERALD MODERN MINIMAL THEME
-   Replicated exactly from the design reference
+   PANDORA'S VEIL — FULL-SCREEN MODULAR OBSIDIAN & EMERALD THEME
+   Divided into distinct blocks with rounded corners
    ========================================================================== */
 
 :root {
-    --pv-bg-deep: #0b0e12;
-    --pv-bg-app: #0f1318;
-    --pv-bg-sidebar: #13181d;
-    --pv-bg-card: #171e25;
-    --pv-bg-card-hover: #1c242c;
-    --pv-bg-active-chat: #162424;
-    --pv-bg-input: #141a20;
-    --pv-border: #202932;
-    --pv-border-subtle: rgba(255, 255, 255, 0.05);
+    --pv-bg-deep: #080b0e;
+    --pv-bg-app: #0d1116;
+    --pv-bg-sidebar-block: #12171d;
+    --pv-bg-card-hover: #192028;
+    --pv-bg-active-chat: #162524;
+    --pv-bg-input: #11161c;
+    --pv-border: #1e2630;
+    --pv-border-subtle: rgba(255, 255, 255, 0.04);
 
     --pv-emerald: #10b981;
     --pv-emerald-light: #34d399;
     --pv-emerald-dark: #064e3b;
-    --pv-emerald-badge: #122b22;
+    --pv-emerald-badge: #132b22;
     --pv-emerald-glow: rgba(16, 185, 129, 0.35);
 
     --pv-text-main: #f8fafc;
@@ -45,43 +44,51 @@ body.pv-dark-theme {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    padding: 16px;
+    padding: 10px;
     -webkit-font-smoothing: antialiased;
 }
 
-/* Main Outer Window Container */
+/* Full Screen Container */
 .pv-app-container {
     width: 100%;
-    max-width: 1360px;
-    height: 94vh;
-    background-color: var(--pv-bg-app);
-    border: 1px solid var(--pv-border);
-    border-radius: 18px;
+    height: 100%;
     display: flex;
+    gap: 10px;
     overflow: hidden;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* Common Modular Block Style with Rounded Corners */
+.pv-block {
+    background-color: var(--pv-bg-sidebar-block);
+    border: 1px solid var(--pv-border);
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 /* --------------------------------------------------------------------------
-   1. Left Obsidian Sidebar
+   1. Left Sidebar Column (Divided into 4 Distinct Blocks)
    -------------------------------------------------------------------------- */
-.pv-sidebar {
-    width: 280px;
-    background-color: var(--pv-bg-sidebar);
-    border-right: 1px solid var(--pv-border);
+.pv-sidebar-column {
+    width: 290px;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 20px 16px;
+    gap: 10px;
     flex-shrink: 0;
 }
 
-/* Brand Header */
+/* Block 1: Tool Name & Actions */
+.pv-block-brand-actions {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
 .pv-brand-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 22px;
-    padding: 0 4px;
     cursor: pointer;
     user-select: none;
 }
@@ -99,31 +106,29 @@ body.pv-dark-theme {
 }
 
 .pv-brand-title {
-    font-size: 1.08rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--pv-text-main);
     letter-spacing: -0.2px;
 }
 
-/* Action Menu (New Chat / New Group) */
 .pv-action-menu {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-bottom: 24px;
+    gap: 4px;
 }
 
 .pv-action-item {
     background: transparent;
     border: none;
     color: var(--pv-text-main);
-    padding: 9px 12px;
-    border-radius: 10px;
-    font-size: 0.92rem;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
     font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     cursor: pointer;
     transition: background 0.15s ease;
     text-align: left;
@@ -137,29 +142,22 @@ body.pv-dark-theme {
     color: var(--pv-text-muted);
 }
 
-/* Scrollable Sections */
-.pv-scroll-sections {
+/* Block 2: DIRECT Contacts */
+.pv-block-direct {
+    flex: 1.3;
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Block 3: GROUPS */
+.pv-block-groups {
     flex: 1;
-    overflow-y: auto;
+    padding: 14px 10px;
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    padding-right: 2px;
-}
-
-.pv-scroll-sections::-webkit-scrollbar {
-    width: 4px;
-}
-
-.pv-scroll-sections::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-}
-
-.pv-section-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    overflow: hidden;
 }
 
 .pv-section-header {
@@ -167,23 +165,35 @@ body.pv-dark-theme {
     font-weight: 700;
     color: var(--pv-text-dim);
     letter-spacing: 0.8px;
-    padding: 0 10px;
-    margin-bottom: 4px;
+    padding: 0 6px;
+    margin-bottom: 8px;
 }
 
 .pv-section-list {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    padding-right: 2px;
+}
+
+.pv-section-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.pv-section-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
 }
 
 /* Contact / Peer Card */
 .pv-contact-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-radius: 10px;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s ease;
     border: 1px solid transparent;
@@ -200,15 +210,15 @@ body.pv-dark-theme {
 }
 
 .pv-contact-card .card-avatar {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     background-color: #1e293b;
     color: var(--pv-text-muted);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
     flex-shrink: 0;
 }
@@ -220,7 +230,7 @@ body.pv-dark-theme {
 
 .pv-contact-card .card-name {
     flex: 1;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: var(--pv-text-muted);
     white-space: nowrap;
@@ -244,9 +254,9 @@ body.pv-dark-theme {
 
 /* Group Item */
 .pv-group-card {
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     color: var(--pv-text-muted);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -263,34 +273,64 @@ body.pv-dark-theme {
     font-weight: 600;
 }
 
-/* Bottom Sidebar Footer */
-.pv-sidebar-footer {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--pv-border);
+/* Block 4: Profile Block with Person Outline Icon */
+.pv-block-profile {
+    padding: 12px 14px;
     cursor: pointer;
-    padding-left: 6px;
-    padding-right: 6px;
+    transition: background 0.15s ease;
+}
+
+.pv-block-profile:hover {
+    background-color: var(--pv-bg-card-hover);
+}
+
+.pv-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pv-person-outline-icon {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--pv-border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pv-text-muted);
+    background-color: var(--pv-bg-input);
+    flex-shrink: 0;
+}
+
+.pv-profile-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
 }
 
 .pv-footer-label {
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     color: var(--pv-text-dim);
-    margin-bottom: 3px;
 }
 
 .pv-footer-fp {
     font-family: var(--pv-font-mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--pv-text-muted);
     letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* --------------------------------------------------------------------------
-   2. Right Main Chat Workspace
+   2. Right Chatting Window (One Unified Block)
    -------------------------------------------------------------------------- */
 .pv-chat-workspace {
     flex: 1;
+    height: 100%;
     display: flex;
     flex-direction: column;
     background-color: var(--pv-bg-app);
@@ -299,8 +339,8 @@ body.pv-dark-theme {
 
 /* Header Bar */
 .pv-workspace-header {
-    height: 70px;
-    padding: 0 28px;
+    height: 68px;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -316,15 +356,15 @@ body.pv-dark-theme {
 }
 
 .pv-contact-avatar {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     background-color: var(--pv-emerald-badge);
     color: var(--pv-emerald-light);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 700;
 }
 
@@ -335,7 +375,7 @@ body.pv-dark-theme {
 }
 
 .pv-contact-name {
-    font-size: 1rem;
+    font-size: 0.98rem;
     font-weight: 700;
     color: var(--pv-text-main);
 }
@@ -348,14 +388,14 @@ body.pv-dark-theme {
 .pv-header-controls {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
 }
 
 .pv-connection-pill {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--pv-text-muted);
 }
 
@@ -394,7 +434,7 @@ body.pv-dark-theme {
     position: absolute;
     top: 36px;
     right: 0;
-    background: var(--pv-bg-sidebar);
+    background: var(--pv-bg-sidebar-block);
     border: 1px solid var(--pv-border);
     border-radius: 12px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
@@ -436,7 +476,7 @@ body.pv-dark-theme {
 .pv-messages-scroll {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 32px;
+    padding: 24px 28px;
     display: flex;
     flex-direction: column;
 }
@@ -453,7 +493,7 @@ body.pv-dark-theme {
 .pv-messages-container {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
     margin-top: auto;
 }
 
@@ -487,13 +527,13 @@ body.pv-dark-theme {
 }
 
 .pv-bubble-group.incoming .pv-card-bubble {
-    background-color: var(--pv-bg-card);
+    background-color: var(--pv-bg-sidebar-block);
     color: var(--pv-text-main);
     border: 1px solid var(--pv-border);
 }
 
 .pv-bubble-group.outgoing .pv-card-bubble {
-    background-color: var(--pv-bg-card);
+    background-color: var(--pv-bg-sidebar-block);
     color: var(--pv-text-main);
     border: 1px solid var(--pv-border);
 }
@@ -557,42 +597,61 @@ body.pv-dark-theme {
 }
 
 /* --------------------------------------------------------------------------
-   3. Bottom Input Dock
+   3. Bottom Input Dock with Separate Button Blocks
    -------------------------------------------------------------------------- */
 .pv-input-dock {
-    padding: 16px 28px 24px 28px;
+    padding: 16px 24px 20px 24px;
     background-color: var(--pv-bg-app);
 }
 
-.pv-input-bar {
-    background-color: var(--pv-bg-input);
-    border: 1px solid var(--pv-border);
-    border-radius: 28px;
-    height: 52px;
+.pv-input-row-form {
     display: flex;
     align-items: center;
-    padding: 0 6px 0 16px;
-    gap: 8px;
+    gap: 10px;
+    width: 100%;
 }
 
-.pv-clip-btn {
+/* Attachment Outline Button (Separate Block) */
+.pv-outline-clip-btn {
     background: transparent;
-    border: none;
-    color: var(--pv-text-dim);
-    cursor: pointer;
-    padding: 6px;
+    border: 1px solid var(--pv-border);
+    border-radius: 12px;
+    width: 46px;
+    height: 46px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.15s ease;
+    color: var(--pv-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
 }
 
-.pv-clip-btn:hover {
+.pv-outline-clip-btn:hover {
     color: var(--pv-text-main);
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--pv-bg-sidebar-block);
 }
 
-.pv-input-bar input {
+/* Message Input Block (Separate Block) */
+.pv-input-block-box {
     flex: 1;
+    background-color: var(--pv-bg-input);
+    border: 1px solid var(--pv-border);
+    border-radius: 14px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    transition: border-color 0.15s ease;
+}
+
+.pv-input-block-box:focus-within {
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.pv-input-block-box input {
+    width: 100%;
     background: transparent;
     border: none;
     outline: none;
@@ -601,17 +660,18 @@ body.pv-dark-theme {
     font-family: var(--pv-font-sans);
 }
 
-.pv-input-bar input::placeholder {
+.pv-input-block-box input::placeholder {
     color: var(--pv-text-dim);
 }
 
-.pv-send-btn {
-    width: 38px;
-    height: 38px;
+/* Send Button (Round Separate Button) */
+.pv-round-send-btn {
+    width: 46px;
+    height: 46px;
     background-color: var(--pv-emerald-light);
     border: none;
     border-radius: 50%;
-    color: #0b0e12;
+    color: #080b0e;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -620,12 +680,12 @@ body.pv-dark-theme {
     flex-shrink: 0;
 }
 
-.pv-send-btn:hover {
+.pv-round-send-btn:hover {
     background-color: #10b981;
     transform: scale(1.04);
 }
 
-.pv-send-btn:active {
+.pv-round-send-btn:active {
     transform: scale(0.96);
 }
 
@@ -647,7 +707,7 @@ body.pv-dark-theme {
 }
 
 .pv-modal-card {
-    background-color: var(--pv-bg-sidebar);
+    background-color: var(--pv-bg-sidebar-block);
     border: 1px solid var(--pv-border);
     border-radius: 16px;
     width: 90%;
@@ -702,7 +762,7 @@ body.pv-dark-theme {
 }
 
 .pv-init-card {
-    background-color: var(--pv-bg-sidebar);
+    background-color: var(--pv-bg-sidebar-block);
     border: 1px solid var(--pv-border);
     border-radius: 18px;
     width: 90%;
