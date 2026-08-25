@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -281,16 +282,12 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 
 		if text == "/f" || text == "/file" || text == "/attach" || text == "/sendfile" {
 			isFileCmd = true
-			fmt.Fprintf(ui.Out, "%s[📁 ATTACH FILE]%s Path: ", ColorBold+ColorYellow, ColorReset)
-			if scanner.Scan() {
-				filePath = strings.TrimSpace(scanner.Text())
-			}
+			filePath = openNativeFileDialog(ui)
 			if filePath == "" {
 				ui.Info("File attachment cancelled.")
 				promptPrompt()
 				continue
 			}
-			fmt.Fprintf(ui.Out, "\033[1A\r\033[K")
 		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/attach ") || strings.HasPrefix(text, "/sendfile ") {
 			isFileCmd = true
 			parts := strings.SplitN(text, " ", 2)
@@ -374,3 +371,23 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	close(stopCh)
 	return 0
 }
+
+// openNativeFileDialog launches native Windows File Explorer GUI file picker dialog
+func openNativeFileDialog(ui *UI) string {
+	ui.Info("Opening File Explorer window... Select any image, document, or media file.")
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", `
+		Add-Type -AssemblyName System.Windows.Forms
+		$dialog = New-Object System.Windows.Forms.OpenFileDialog
+		$dialog.Title = "Select File / Media to Encrypt & Send - Pandora's Veil"
+		$dialog.Filter = "All Files (*.*)|*.*|Images (*.png;*.jpg;*.jpeg;*.gif)|*.png;*.jpg;*.jpeg;*.gif|Documents (*.pdf;*.docx;*.txt)|*.pdf;*.docx;*.txt|Media (*.mp4;*.mp3;*.zip)|*.mp4;*.mp3;*.zip"
+		if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+			Write-Output $dialog.FileName
+		}
+	`)
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
