@@ -26,7 +26,7 @@
 - **Native Compiled Client (`pv`)**: Cryptography executes in a compiled Go binary. Trust is established once at installation, completely bypassing browser JavaScript vulnerabilities.
 - **Device-Bound Encryption (`filippo.io/age`)**: Secrets are encrypted locally targeting the recipient's physical X25519 identity. Possession of the URL alone grants zero access—decryption strictly requires the recipient's local private key.
 - **Mandatory Hard-Stop Fingerprint Verification**: Senders must explicitly verify the recipient's 8-character device fingerprint out-of-band before encryption occurs, completely defeating relay key-substitution (MITM) attacks.
-- **Real-Time WhatsApp-Style Terminal Chat (`pv chat`)**: High-speed, end-to-end encrypted messaging stream directly in the command terminal with instant delivery, timestamps, and message bubble alignment.
+- **Real-Time WhatsApp-Style Terminal Chat (`pv chat`)**: High-speed, end-to-end encrypted messaging stream directly in the command terminal with instant delivery, timestamps, and message bubble alignment (supporting both 1-on-1 and Multi-Party Group Chat).
 - **Live Deployed Cloud Relay**: Backed by a high-availability cloud backend at `https://pandoras-veil.onrender.com`.
 
 ---
@@ -103,8 +103,9 @@ Security Tip: Share your Handle or Fingerprint out-of-band with senders to verif
 
 ### 4. Real-Time Encrypted Live Terminal Chat
 
-Start an interactive, end-to-end encrypted chat with another user on the live cloud relay:
+Start an interactive, end-to-end encrypted chat with another user or group on the live cloud relay:
 
+#### 1-on-1 Private Chat:
 **Alice runs:**
 ```powershell
 pv chat --with BOB
@@ -113,6 +114,14 @@ pv chat --with BOB
 **Bob runs:**
 ```powershell
 pv chat --with ALICE
+```
+
+#### Multi-Recipient Group Chat:
+Start a real-time group chat session with multiple members simultaneously:
+```powershell
+pv chat --with BOB,CHARLIE
+# or
+pv chat --group BOB,CHARLIE
 ```
 
 **Live WhatsApp-Style Interface:**
@@ -130,6 +139,7 @@ pv chat --with ALICE
 ```
 - **Incoming Messages**: Formatted on the left edge with sender handle.
 - **Outgoing Messages**: Right-aligned on the terminal screen with pink `[YOU]` badge, green text, and gray timestamps.
+- **Group Encryption**: Messages in group chat are natively encrypted for all member device public keys using `filippo.io/age` multi-recipient encryption.
 
 ---
 
@@ -221,7 +231,7 @@ pv read pbqvqkuyrnaprbwqgyuin7nwy
 | `pv identity` | `pv identity` | Displays device handle, public key, and fingerprint verified against live relay. |
 | `pv send` | `pv send --to <handle> [options] [text]` | Encrypts payload locally for target device and deposits ciphertext on relay. |
 | `pv read` | `pv read <share-id-or-url> [--save <file>]` | Fetches ciphertext and decrypts using this device's private key. |
-| `pv chat` | `pv chat --with <handle>` | Starts real-time, end-to-end encrypted terminal chat session. |
+| `pv chat` | `pv chat [--with <handle>] [--group <h1,h2>]` | Starts real-time, end-to-end encrypted terminal chat session (1-on-1 or Group). |
 | `pv version`| `pv version` | Prints CLI version information. |
 | `pv help` | `pv help` | Displays help and command options. |
 
