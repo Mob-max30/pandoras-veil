@@ -133,7 +133,7 @@ pv chat --group dev-team
 
 Launch the full-screen terminal TUI:
 ```bash
-pv tui
+pv shell
 ```
 
 ---
