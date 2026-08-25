@@ -48,8 +48,9 @@ func Decrypt(ciphertext []byte, identity *age.X25519Identity) ([]byte, error) {
 
 // DecodeFilePayload checks if decrypted plaintext is an encapsulated binary file payload and extracts its filename and data.
 func DecodeFilePayload(plaintext []byte) (filename string, data []byte, isFile bool) {
+	trimmed := bytes.TrimSpace(plaintext)
 	var fp FilePayload
-	if err := json.Unmarshal(plaintext, &fp); err == nil && fp.IsFile && fp.DataB64 != "" {
+	if err := json.Unmarshal(trimmed, &fp); err == nil && fp.IsFile && fp.DataB64 != "" {
 		if decoded, err := base64.StdEncoding.DecodeString(fp.DataB64); err == nil {
 			return fp.Filename, decoded, true
 		}
