@@ -185,6 +185,29 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	fmt.Fprintf(ui.Out, "%s%s  Type your message and press [Enter] to send live. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorReset)
 	fmt.Fprintf(ui.Out, "%s%s================================================================================%s\n\n", ColorBold, ColorCyan, ColorReset)
 
+	// Fetch & Replay Pending Queued Inbox Messages
+	for _, m := range members {
+		pendingMsgs, err := apiClient.FetchInbox(localIdFile.Handle, m.handle)
+		if err == nil && len(pendingMsgs) > 0 {
+			for _, msg := range pendingMsgs {
+				plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
+				if err != nil {
+					continue
+				}
+				timestamp := time.Now().Format("15:04:05")
+				senderName := msg.Sender
+				if senderName == "" {
+					senderName = m.handle
+				}
+				fmt.Fprintf(ui.Out, "%s[%s]%s %s[%s] ❯%s %s\n",
+					ColorDim, timestamp, ColorReset,
+					ColorBold+ColorMagenta, senderName, ColorReset,
+					string(plaintext),
+				)
+			}
+		}
+	}
+
 	stopCh := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

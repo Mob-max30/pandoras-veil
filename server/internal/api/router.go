@@ -16,6 +16,7 @@ func NewRouter(h *Handlers) http.Handler {
 	mux.HandleFunc("POST /paste", h.UploadPaste)
 	mux.HandleFunc("GET /paste/{id}", h.FetchPaste)
 	mux.HandleFunc("GET /stream", h.HandleStream)
+	mux.HandleFunc("GET /inbox", h.FetchInbox)
 	mux.HandleFunc("GET /health", h.Health)
 
 	return withMiddleware(mux, h.Logger)

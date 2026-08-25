@@ -53,6 +53,18 @@ type healthResponse struct {
 	Status string `json:"status"`
 }
 
+// --- GET /inbox --------------------------------------------------------------
+
+type inboxMessage struct {
+	ID         string `json:"id"`
+	Ciphertext string `json:"ciphertext"`
+	Sender     string `json:"sender"`
+}
+
+type fetchInboxResponse struct {
+	Messages []inboxMessage `json:"messages"`
+}
+
 // --- shared error shape --------------------------------------------------
 
 // errorResponse is the single error shape used across every route, per the

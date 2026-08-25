@@ -191,3 +191,33 @@ func (s *Store) Publish(ctx context.Context, channel, message string) error {
 	return s.rdb.Publish(ctx, channel, message).Err()
 }
 
+// ---- Offline Inbox Queueing ---------------------------------------------
+
+const inboxPrefix = "pandora:inbox:" // pandora:inbox:<recipient>:<sender> -> list of msg JSON
+
+// PushInboxMessage appends a pending message JSON string to a recipient-sender inbox list with TTL.
+func (s *Store) PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error {
+	redisKey := inboxPrefix + recipient + ":" + sender
+	pipe := s.rdb.Pipeline()
+	pipe.RPush(ctx, redisKey, msgJSON)
+	pipe.Expire(ctx, redisKey, ttl)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return nil
+}
+
+// GetAndClearInbox fetches all pending messages for recipient from sender and clears the inbox list.
+func (s *Store) GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error) {
+	redisKey := inboxPrefix + recipient + ":" + sender
+	msgs, err := s.rdb.LRange(ctx, redisKey, 0, -1).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if len(msgs) > 0 {
+		_ = s.rdb.Del(ctx, redisKey).Err()
+	}
+	return msgs, nil
+}
+
