@@ -187,6 +187,38 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	fmt.Fprintf(ui.Out, "%s%s  Type your message or %s/f%s%s to attach a file. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorBold+ColorYellow, ColorReset, ColorDim+ColorCyan, ColorReset)
 	fmt.Fprintf(ui.Out, "%s%s================================================================================%s\n\n", ColorBold, ColorCyan, ColorReset)
 
+	// 5b. Flush & Render Pending Offline Queued Messages
+	inboxMsgs, err := apiClient.FetchInbox(localIdFile.Handle, recipientHandles[0])
+	if err == nil && len(inboxMsgs) > 0 {
+		for _, msg := range inboxMsgs {
+			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
+			if err != nil {
+				continue
+			}
+			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+			timestamp := time.Now().Format("15:04:05")
+			senderName := msg.Sender
+			if senderName == "" {
+				senderName = recipientHandles[0]
+			}
+			if isFile {
+				_ = os.MkdirAll("./downloads", 0755)
+				savePath := filepath.Join("./downloads", filename)
+				if err := os.WriteFile(savePath, fileData, 0600); err == nil {
+					fmt.Fprintf(ui.Out, "%s[%s]%s %s[%s] (Offline Queue) ❯%s 📁 [FILE RECEIVED] %s (%d bytes) -> Saved to %s\n",
+						ColorDim, timestamp, ColorReset,
+						ColorBold+ColorMagenta, senderName, ColorReset,
+						ColorYellow+filename+ColorReset, len(fileData), ColorCyan+savePath+ColorReset)
+				}
+			} else {
+				fmt.Fprintf(ui.Out, "%s[%s]%s %s[%s] (Offline Queue) ❯%s %s\n",
+					ColorDim, timestamp, ColorReset,
+					ColorBold+ColorMagenta, senderName, ColorReset,
+					string(plaintext))
+			}
+		}
+	}
+
 	stopCh := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

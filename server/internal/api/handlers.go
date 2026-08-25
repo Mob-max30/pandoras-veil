@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -31,6 +32,10 @@ type Store interface {
 	Ping(ctx context.Context) error
 	Subscribe(ctx context.Context, channel string) *redis.PubSub
 	Publish(ctx context.Context, channel, message string) error
+	PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error
+	GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error)
+	GetAllAndClearInbox(ctx context.Context, recipient string) ([]string, error)
+	FlushDB(ctx context.Context) error
 }
 
 // TTLPolicy clamps a caller-requested TTL to the server's configured bounds.
@@ -169,7 +174,7 @@ func (h *Handlers) UploadPaste(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish to Redis Pub/Sub for real-time recipients
+	// Queue in recipient's inbox and publish to Redis Pub/Sub for real-time recipients
 	if req.Recipient != "" {
 		eventPayload, err := json.Marshal(map[string]string{
 			"id":         id,
@@ -177,6 +182,9 @@ func (h *Handlers) UploadPaste(w http.ResponseWriter, r *http.Request) {
 			"sender":     req.Sender,
 		})
 		if err == nil {
+			if req.Sender != "" {
+				_ = h.Store.PushInboxMessage(r.Context(), req.Recipient, req.Sender, string(eventPayload), ttl)
+			}
 			_ = h.Store.Publish(r.Context(), "stream:"+req.Recipient, string(eventPayload))
 		}
 	}
@@ -207,7 +215,7 @@ func (h *Handlers) FetchPaste(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ---- GET /stream?handle={handle} -----------------------------------------
+// ---- GET /stream?handle={handle}&with={sender} ---------------------------
 
 func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 	handle := r.URL.Query().Get("handle")
@@ -215,6 +223,8 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "handle query parameter is required")
 		return
 	}
+
+	withParam := r.URL.Query().Get("with")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -227,6 +237,25 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
+
+	// Flush pending queued inbox messages immediately upon establishing connection
+	if withParam != "" {
+		queuedMsgs, err := h.Store.GetAndClearInbox(r.Context(), handle, withParam)
+		if err == nil {
+			for _, qm := range queuedMsgs {
+				fmt.Fprintf(w, "data: %s\n\n", qm)
+				flusher.Flush()
+			}
+		}
+	} else {
+		queuedMsgs, err := h.Store.GetAllAndClearInbox(r.Context(), handle)
+		if err == nil {
+			for _, qm := range queuedMsgs {
+				fmt.Fprintf(w, "data: %s\n\n", qm)
+				flusher.Flush()
+			}
+		}
+	}
 
 	// Subscribe to Redis channel: stream:<handle>
 	pubsub := h.Store.Subscribe(r.Context(), "stream:"+handle)
@@ -244,10 +273,72 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
+			// If `with` filter is set, filter out live messages from other senders
+			if withParam != "" {
+				var evt struct {
+					Sender string `json:"sender"`
+				}
+				if err := json.Unmarshal([]byte(msg.Payload), &evt); err == nil && evt.Sender != "" {
+					if !strings.EqualFold(evt.Sender, withParam) {
+						continue
+					}
+					// Clear from inbox list if it was queued during stream latency
+					_, _ = h.Store.GetAndClearInbox(r.Context(), handle, withParam)
+				}
+			}
 			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
 			flusher.Flush()
 		}
 	}
+}
+
+// ---- GET /inbox?recipient={recipient}&sender={sender} ---------------------
+
+func (h *Handlers) FetchInbox(w http.ResponseWriter, r *http.Request) {
+	recipient := r.URL.Query().Get("recipient")
+	sender := r.URL.Query().Get("sender")
+	if recipient == "" {
+		writeError(w, http.StatusBadRequest, "recipient query parameter is required")
+		return
+	}
+
+	var msgsRaw []string
+	var err error
+	if sender != "" {
+		msgsRaw, err = h.Store.GetAndClearInbox(r.Context(), recipient, sender)
+	} else {
+		msgsRaw, err = h.Store.GetAllAndClearInbox(r.Context(), recipient)
+	}
+
+	if err != nil {
+		h.Logger.Error("fetching inbox", "error", err, "recipient", recipient, "sender", sender)
+		writeError(w, http.StatusServiceUnavailable, "relay storage unavailable")
+		return
+	}
+
+	var msgs []inboxMessage
+	for _, raw := range msgsRaw {
+		var msg inboxMessage
+		if err := json.Unmarshal([]byte(raw), &msg); err == nil {
+			msgs = append(msgs, msg)
+		}
+	}
+	if msgs == nil {
+		msgs = []inboxMessage{}
+	}
+
+	writeJSON(w, http.StatusOK, fetchInboxResponse{Messages: msgs})
+}
+
+// ---- POST/DELETE /admin/clear ----------------------------------------------
+
+func (h *Handlers) FlushServer(w http.ResponseWriter, r *http.Request) {
+	if err := h.Store.FlushDB(r.Context()); err != nil {
+		h.Logger.Error("flushing server db", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "failed to flush database")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
 }
 
 // ---- GET /health ------------------------------------------------------------

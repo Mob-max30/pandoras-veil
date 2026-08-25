@@ -304,6 +304,7 @@ type RelayClient interface {
 	PostChatMessage(recipient, sender, ciphertext string) (string, error)
 	PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error)
 	GetPaste(id string) (string, error)
+	FetchInbox(recipient, sender string) ([]InboxMessage, error)
 	ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error
 	Health() error
 }
@@ -579,6 +580,40 @@ func (c *HTTPClient) GetPaste(id string) (string, error) {
 	return pasteResp.Ciphertext, nil
 }
 
+type InboxMessage struct {
+	ID         string `json:"id"`
+	Ciphertext string `json:"ciphertext"`
+	Sender     string `json:"sender"`
+}
+
+type FetchInboxResponse struct {
+	Messages []InboxMessage `json:"messages"`
+}
+
+func (c *HTTPClient) FetchInbox(recipient, sender string) ([]InboxMessage, error) {
+	endpoint := fmt.Sprintf("%s/inbox?recipient=%s", c.BaseURL, url.QueryEscape(recipient))
+	if sender != "" {
+		endpoint += fmt.Sprintf("&sender=%s", url.QueryEscape(sender))
+	}
+
+	resp, err := c.HTTPClient.Get(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("relay returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var inboxResp FetchInboxResponse
+	if err := json.NewDecoder(resp.Body).Decode(&inboxResp); err != nil {
+		return nil, fmt.Errorf("failed to decode inbox response: %w", err)
+	}
+	return inboxResp.Messages, nil
+}
+
 func (c *HTTPClient) Health() error {
 	resp, err := c.HTTPClient.Get(c.BaseURL + "/health")
 	if err != nil {
@@ -682,4 +717,8 @@ func (m *MockClient) ListenStream(handle string, onMessage func(msg StreamEvent)
 
 func (m *MockClient) Health() error {
 	return nil
+}
+
+func (m *MockClient) FetchInbox(recipient, sender string) ([]InboxMessage, error) {
+	return []InboxMessage{}, nil
 }

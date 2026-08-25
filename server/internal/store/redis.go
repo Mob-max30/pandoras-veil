@@ -191,3 +191,79 @@ func (s *Store) Publish(ctx context.Context, channel, message string) error {
 	return s.rdb.Publish(ctx, channel, message).Err()
 }
 
+// ---- Offline Inbox Queueing ---------------------------------------------
+
+const (
+	inboxPrefix        = "pandora:inbox:"         // pandora:inbox:<recipient>:<sender> -> list of msg JSON
+	inboxSendersPrefix = "pandora:inbox_senders:" // pandora:inbox_senders:<recipient> -> set of senders
+)
+
+// PushInboxMessage appends a pending message JSON string to a recipient-sender inbox list with TTL.
+func (s *Store) PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error {
+	redisKey := inboxPrefix + recipient + ":" + sender
+	sendersKey := inboxSendersPrefix + recipient
+	pipe := s.rdb.Pipeline()
+	pipe.RPush(ctx, redisKey, msgJSON)
+	pipe.Expire(ctx, redisKey, ttl)
+	pipe.SAdd(ctx, sendersKey, sender)
+	pipe.Expire(ctx, sendersKey, ttl)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return nil
+}
+
+// GetAndClearInbox fetches all pending messages for recipient from sender and clears the inbox list.
+func (s *Store) GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error) {
+	redisKey := inboxPrefix + recipient + ":" + sender
+	sendersKey := inboxSendersPrefix + recipient
+	msgs, err := s.rdb.LRange(ctx, redisKey, 0, -1).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if len(msgs) > 0 {
+		_ = s.rdb.Del(ctx, redisKey).Err()
+		_ = s.rdb.SRem(ctx, sendersKey, sender).Err()
+	}
+	return msgs, nil
+}
+
+// GetAllAndClearInbox fetches all pending offline messages across all senders for a recipient.
+func (s *Store) GetAllAndClearInbox(ctx context.Context, recipient string) ([]string, error) {
+	sendersKey := inboxSendersPrefix + recipient
+	senders, err := s.rdb.SMembers(ctx, sendersKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+
+	var allMsgs []string
+	for _, sender := range senders {
+		msgs, err := s.GetAndClearInbox(ctx, recipient, sender)
+		if err == nil && len(msgs) > 0 {
+			allMsgs = append(allMsgs, msgs...)
+		}
+	}
+	_ = s.rdb.Del(ctx, sendersKey).Err()
+
+	// Scan pattern fallback to catch any existing unindexed keys
+	pattern := inboxPrefix + recipient + ":*"
+	keys, err := s.rdb.Keys(ctx, pattern).Result()
+	if err == nil {
+		for _, key := range keys {
+			msgs, err := s.rdb.LRange(ctx, key, 0, -1).Result()
+			if err == nil && len(msgs) > 0 {
+				allMsgs = append(allMsgs, msgs...)
+				_ = s.rdb.Del(ctx, key).Err()
+			}
+		}
+	}
+
+	return allMsgs, nil
+}
+
+// FlushDB clears all keys in the current Redis database.
+func (s *Store) FlushDB(ctx context.Context) error {
+	return s.rdb.FlushDB(ctx).Err()
+}
+

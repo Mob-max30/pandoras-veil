@@ -105,6 +105,29 @@ func (f *fakeStore) Publish(_ context.Context, _, _ string) error {
 	return nil
 }
 
+func (f *fakeStore) PushInboxMessage(_ context.Context, _, _, _ string, _ time.Duration) error {
+	return nil
+}
+
+func (f *fakeStore) GetAndClearInbox(_ context.Context, _, _ string) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) GetAllAndClearInbox(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) FlushDB(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.down {
+		return store.ErrUnavailable
+	}
+	f.keys = make(map[string]store.KeyRecord)
+	f.pastes = make(map[string]string)
+	return nil
+}
+
 func newTestHandlers(fs *fakeStore) *Handlers {
 	return New(fs, TTLPolicy{Default: 15 * time.Minute, Min: 30 * time.Second, Max: 7 * 24 * time.Hour}, 2*1024*1024, slog.Default())
 }
