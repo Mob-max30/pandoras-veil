@@ -1,5 +1,5 @@
 // ==========================================================================
-// PANDORA'S VEIL | Linen Aesthetic Logic & Persistent Connection History
+// PANDORA'S VEIL | Linen Aesthetic Logic & Pure Live Server Connection
 // ==========================================================================
 
 const AVATAR_COLORS = [
@@ -20,6 +20,7 @@ function getAvatarColor(handle) {
 }
 
 function getInitials(handle) {
+    if (!handle) return '?';
     const clean = handle.replace(/^PV-/, '').replace(/^#/, '');
     const parts = clean.split(/[\s_-]+/);
     if (parts.length >= 2) {
@@ -28,105 +29,21 @@ function getInitials(handle) {
     return clean.slice(0, 2).toUpperCase() || 'P';
 }
 
-const DEFAULT_CONTACTS = [
-    {
-        handle: 'PV-PRANAV',
-        name: 'Pranav',
-        fp: '1E42-2834',
-        type: 'dm',
-        lastMessage: 'Live end-to-end encrypted session active.',
-        time: '21:10'
-    },
-    {
-        handle: 'PV-PAVAN',
-        name: 'Pavan',
-        fp: '7C11-884A',
-        type: 'dm',
-        lastMessage: 'Redis TTL offline queueing verified.',
-        time: '20:55'
-    },
-    {
-        handle: 'Development',
-        name: 'Development',
-        fp: 'Group',
-        type: 'group',
-        members: ['PV-PRANAV', 'PV-PAVAN', 'PV-ALICE', 'PV-BOB'],
-        lastMessage: 'Alice: Deployment verified on Render.',
-        time: 'Yesterday'
-    },
-    {
-        handle: 'PV-BOB',
-        name: 'Bob',
-        fp: '915E-B66D',
-        type: 'dm',
-        lastMessage: 'Key verified: 915E-B66D',
-        time: 'Yesterday'
-    },
-    {
-        handle: 'PV-ALICE',
-        name: 'Alice',
-        fp: '47B7-9F60',
-        type: 'dm',
-        lastMessage: 'Device key registered.',
-        time: '22/08'
-    }
-];
-
-const DEFAULT_CONVERSATIONS = {
-    'PV-PRANAV': [
-        {
-            sender: 'PV-PRANAV',
-            text: 'Live end-to-end encrypted session active on Pandora\'s Veil.',
-            timestamp: '21:10',
-            isOutgoing: false
-        }
-    ],
-    'PV-PAVAN': [
-        {
-            sender: 'PV-PAVAN',
-            text: 'Redis TTL offline queueing verified on cloud relay.',
-            timestamp: '20:55',
-            isOutgoing: false
-        }
-    ],
-    'Development': [
-        {
-            sender: 'PV-ALICE',
-            text: 'Deployment verified on Render relay.',
-            timestamp: 'Yesterday',
-            isOutgoing: false
-        }
-    ],
-    'PV-BOB': [
-        {
-            sender: 'PV-BOB',
-            text: 'Connected. Device fingerprint 915E-B66D confirmed.',
-            timestamp: 'Yesterday',
-            isOutgoing: false
-        }
-    ],
-    'PV-ALICE': [
-        {
-            sender: 'PV-ALICE',
-            text: 'Device key registered.',
-            timestamp: '22/08',
-            isOutgoing: false
-        }
-    ]
-};
-
 const state = {
-    myHandle: 'PV-UJWAL',
-    myFingerprint: 'BA64-5843',
-    myPublicKey: 'age1q8ulqk4630rwqwavdst4fegn9st2zmrqdczvrx4uec9cmu6ah55swres5x',
-    activeTarget: 'PV-PRANAV',
+    myHandle: '',
+    myFingerprint: '',
+    myPublicKey: '',
+    activeTarget: '',
+    activeDisplayName: '',
+    activeTargetFP: '',
     isGroup: false,
-    groupMembers: ['PV-PRANAV', 'PV-PAVAN', 'PV-ALICE', 'PV-BOB'],
+    groupMembers: [],
     ttl: 300,
     burnAfterReading: true,
     eventSource: null,
     contacts: [],
-    conversations: {}
+    conversations: {},
+    serverConnected: false
 };
 
 function getAuthToken() {
@@ -134,41 +51,35 @@ function getAuthToken() {
     return meta ? meta.getAttribute('content') : '';
 }
 
-// Persistence Utilities
+// Persistence Utilities (Stores ONLY real user interactions)
 function loadPersistedData() {
     try {
-        const savedContacts = localStorage.getItem('pandora_contacts_v2');
-        const savedConvs = localStorage.getItem('pandora_conversations_v2');
-        const savedTarget = localStorage.getItem('pandora_active_target_v2');
+        const savedContacts = localStorage.getItem('pandora_contacts_v3');
+        const savedConvs = localStorage.getItem('pandora_conversations_v3');
+        const savedTarget = localStorage.getItem('pandora_active_target_v3');
 
-        if (savedContacts) {
-            state.contacts = JSON.parse(savedContacts);
-        } else {
-            state.contacts = DEFAULT_CONTACTS;
-        }
-
-        if (savedConvs) {
-            state.conversations = JSON.parse(savedConvs);
-        } else {
-            state.conversations = DEFAULT_CONVERSATIONS;
-        }
+        state.contacts = savedContacts ? JSON.parse(savedContacts) : [];
+        state.conversations = savedConvs ? JSON.parse(savedConvs) : {};
 
         if (savedTarget && state.contacts.some(c => c.handle === savedTarget)) {
             state.activeTarget = savedTarget;
         } else if (state.contacts.length > 0) {
             state.activeTarget = state.contacts[0].handle;
+        } else {
+            state.activeTarget = '';
         }
     } catch (e) {
-        state.contacts = DEFAULT_CONTACTS;
-        state.conversations = DEFAULT_CONVERSATIONS;
+        state.contacts = [];
+        state.conversations = {};
+        state.activeTarget = '';
     }
 }
 
 function savePersistedData() {
     try {
-        localStorage.setItem('pandora_contacts_v2', JSON.stringify(state.contacts));
-        localStorage.setItem('pandora_conversations_v2', JSON.stringify(state.conversations));
-        localStorage.setItem('pandora_active_target_v2', state.activeTarget);
+        localStorage.setItem('pandora_contacts_v3', JSON.stringify(state.contacts));
+        localStorage.setItem('pandora_conversations_v3', JSON.stringify(state.conversations));
+        localStorage.setItem('pandora_active_target_v3', state.activeTarget);
     } catch (e) {
         console.warn('Failed to save to localStorage:', e);
     }
@@ -182,6 +93,7 @@ const chatsListEl = document.getElementById('chats-list');
 const activeHeaderAvatarEl = document.getElementById('active-header-avatar');
 const activeContactTitleEl = document.getElementById('active-contact-title');
 const activeFpSubtleEl = document.getElementById('active-fp-subtle');
+const activeStatusTextEl = document.getElementById('active-status-text');
 const chatMessagesContainerEl = document.getElementById('chat-messages-container');
 const chatMessagesScrollEl = document.getElementById('chat-messages-scroll');
 const chatInputEl = document.getElementById('chat-input');
@@ -202,9 +114,10 @@ async function initApp() {
         });
         if (res.ok) {
             const data = await res.json();
-            state.myHandle = data.handle || state.myHandle;
-            state.myFingerprint = data.fingerprint || state.myFingerprint;
-            state.myPublicKey = data.publicKey || state.myPublicKey;
+            state.myHandle = data.handle || 'PV-USER';
+            state.myFingerprint = data.fingerprint || 'PENDING';
+            state.myPublicKey = data.publicKey || '';
+            state.serverConnected = true;
 
             myHandleEl.textContent = state.myHandle;
             myFingerprintEl.textContent = `FP: ${state.myFingerprint}`;
@@ -224,6 +137,23 @@ async function initApp() {
 function renderCorrespondenceSidebar() {
     chatsListEl.innerHTML = '';
 
+    if (state.contacts.length === 0) {
+        const emptyState = document.createElement('div');
+        emptyState.style.cssText = 'padding: 36px 20px; text-align: center; color: #8fa099; font-size: 0.88rem; line-height: 1.6;';
+        emptyState.innerHTML = `
+            <div>No previous connections.</div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #c69b59; cursor: pointer;" onclick="openNewChatModal()">+ Start a conversation</div>
+        `;
+        chatsListEl.appendChild(emptyState);
+
+        activeHeaderAvatarEl.textContent = '—';
+        activeHeaderAvatarEl.className = 'avatar avatar-sand';
+        activeContactTitleEl.textContent = 'No Active Correspondence';
+        activeFpSubtleEl.textContent = '';
+        activeStatusTextEl.textContent = state.serverConnected ? 'Connected to Relay' : 'Connecting...';
+        return;
+    }
+
     state.contacts.forEach(contact => {
         const initials = getInitials(contact.name || contact.handle);
         const colorClass = getAvatarColor(contact.handle);
@@ -232,19 +162,16 @@ function renderCorrespondenceSidebar() {
         const card = document.createElement('div');
         card.className = `chat-card ${isActive ? 'active' : ''}`;
         card.setAttribute('data-handle', contact.handle);
-        card.setAttribute('data-name', contact.name || contact.handle);
-        card.setAttribute('data-fp', contact.fp || 'Verified');
-        card.setAttribute('data-type', contact.type || 'dm');
 
         card.innerHTML = `
             <div class="avatar ${colorClass}">${initials}</div>
             <div class="chat-card-content">
                 <div class="chat-card-header">
                     <span class="contact-card-name">${contact.name || contact.handle}</span>
-                    <span class="card-time" id="time-${contact.handle}">${contact.time || ''}</span>
+                    <span class="card-time">${contact.time || ''}</span>
                 </div>
                 <div class="chat-card-footer">
-                    <span class="card-snippet" id="preview-${contact.handle}">${contact.lastMessage || 'Connected'}</span>
+                    <span class="card-snippet">${contact.lastMessage || 'Connected'}</span>
                 </div>
             </div>
         `;
@@ -266,6 +193,7 @@ function renderCorrespondenceSidebar() {
         activeHeaderAvatarEl.className = `avatar ${colorClass}`;
         activeContactTitleEl.textContent = activeContact.name || activeContact.handle;
         activeFpSubtleEl.textContent = `• ${activeContact.fp || 'Verified'}`;
+        activeStatusTextEl.textContent = 'Active now';
         state.isGroup = activeContact.type === 'group';
     }
 }
@@ -293,7 +221,6 @@ function touchContact(handle, lastMsgText, timestamp, senderName) {
     } else {
         contact.lastMessage = lastMsgText;
         contact.time = timestamp;
-        // Move to top of list
         state.contacts = [contact, ...state.contacts.filter(c => c.handle !== handle)];
     }
     savePersistedData();
@@ -309,6 +236,13 @@ function connectSSEStream() {
     const token = getAuthToken();
     const streamURL = token ? `/api/stream?token=${encodeURIComponent(token)}` : '/api/stream';
     state.eventSource = new EventSource(streamURL);
+
+    state.eventSource.onopen = () => {
+        state.serverConnected = true;
+        if (!state.activeTarget) {
+            activeStatusTextEl.textContent = 'Connected to Relay';
+        }
+    };
 
     state.eventSource.onmessage = (event) => {
         try {
@@ -330,7 +264,9 @@ function connectSSEStream() {
 
                 touchContact(senderName, data.text, timestamp, senderName);
 
-                if (senderName === state.activeTarget || (state.isGroup && senderName !== state.myHandle)) {
+                if (!state.activeTarget) {
+                    selectContact(senderName);
+                } else if (senderName === state.activeTarget || (state.isGroup && senderName !== state.myHandle)) {
                     appendLinenBubble(msg);
                 }
             }
@@ -338,10 +274,28 @@ function connectSSEStream() {
             console.error('Error parsing stream event:', err);
         }
     };
+
+    state.eventSource.onerror = () => {
+        state.serverConnected = false;
+        if (!state.activeTarget) {
+            activeStatusTextEl.textContent = 'Reconnecting to Relay...';
+        }
+    };
 }
 
 // 4. Render Active Conversation Messages
 function renderActiveConversation() {
+    if (!state.activeTarget || state.contacts.length === 0) {
+        chatMessagesContainerEl.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding-top: 120px; text-align:center; color:#78817d;">
+                <h3 style="font-family:var(--font-serif); font-size:1.6rem; color:var(--linen-card-green); margin-bottom:8px; font-weight:400;">Linen Secure Relay</h3>
+                <p style="font-size:0.92rem; max-width:340px; color:#636765; line-height:1.5;">End-to-end encrypted zero-knowledge messaging. Choose or start a correspondence.</p>
+                <button class="linen-btn" style="margin-top:20px; padding:10px 22px; font-size:0.88rem;" onclick="openNewChatModal()">+ Start Conversation</button>
+            </div>
+        `;
+        return;
+    }
+
     const separatorHTML = `
         <div class="linen-date-separator">
             <span class="sep-line"></span>
@@ -391,6 +345,11 @@ async function handleSendMessage(e) {
     e.preventDefault();
     const text = chatInputEl.value.trim();
     if (!text) return;
+
+    if (!state.activeTarget) {
+        openNewChatModal();
+        return;
+    }
 
     chatInputEl.value = '';
 
@@ -480,6 +439,7 @@ function toggleProfileModal() {
 }
 
 function openContactDetailsModal() {
+    if (!state.activeTarget) return;
     const contact = state.contacts.find(c => c.handle === state.activeTarget);
     const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
     const fp = contact ? (contact.fp || 'Verified') : 'Verified';
@@ -497,19 +457,23 @@ function openContactDetailsModal() {
 function openNewChatModal() {
     openModal('Start Correspondence', `
         <div style="display:flex; flex-direction:column; gap:14px;">
-            <p style="color:#636765; font-size:0.88rem;">Enter recipient handle or comma-separated handles for a group:</p>
-            <input type="text" id="new-chat-handle-input" placeholder="e.g. PV-BOB or PV-BOB,PV-ALICE" style="width:100%; padding:12px 14px; background:#fff; border:1px solid #dfd8cc; color:#222725; border-radius:10px; font-size:0.95rem; outline:none;">
+            <p style="color:#636765; font-size:0.88rem;">Enter recipient handle (e.g. <code>PV-PRANAV</code> or <code>PV-BOB</code>):</p>
+            <input type="text" id="new-chat-handle-input" placeholder="e.g. PV-PRANAV" style="width:100%; padding:12px 14px; background:#fff; border:1px solid #dfd8cc; color:#222725; border-radius:10px; font-size:0.95rem; outline:none;" autofocus>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
                 <button type="button" class="linen-btn" onclick="startNewChatFromModal()">Start Correspondence</button>
             </div>
         </div>
     `);
+    setTimeout(() => {
+        const inp = document.getElementById('new-chat-handle-input');
+        if (inp) inp.focus();
+    }, 100);
 }
 
 function startNewChatFromModal() {
     const input = document.getElementById('new-chat-handle-input');
     if (input && input.value.trim()) {
-        const val = input.value.trim();
+        const val = input.value.trim().toUpperCase();
         touchContact(val, 'Connected', formatTime(new Date()), val);
         selectContact(val);
         closeModal();
@@ -517,6 +481,10 @@ function startNewChatFromModal() {
 }
 
 function openSecretDepositModal() {
+    if (!state.activeTarget) {
+        openNewChatModal();
+        return;
+    }
     const contact = state.contacts.find(c => c.handle === state.activeTarget);
     const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
 
@@ -571,7 +539,7 @@ async function submitSecretDepositFromModal() {
 
 function openDisappearingModal() {
     const contact = state.contacts.find(c => c.handle === state.activeTarget);
-    const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
+    const displayName = contact ? (contact.name || contact.handle) : (state.activeTarget || 'recipient');
 
     openModal('Disappearing Messages Timer', `
         <div style="display:flex; flex-direction:column; gap:14px;">
