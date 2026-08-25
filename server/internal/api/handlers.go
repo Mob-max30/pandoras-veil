@@ -31,7 +31,7 @@ type Store interface {
 	PutPaste(ctx context.Context, id string, ciphertextB64 string, ttl time.Duration) error
 	GetPaste(ctx context.Context, id string) (store.PasteRecord, error)
 	Ping(ctx context.Context) error
-	Subscribe(ctx context.Context, channel string) *redis.PubSub
+	Subscribe(ctx context.Context, channels ...string) *redis.PubSub
 	Publish(ctx context.Context, channel, message string) error
 	PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error
 	GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error)
@@ -200,10 +200,24 @@ func (h *Handlers) UploadPaste(w http.ResponseWriter, r *http.Request) {
 			"sender":     req.Sender,
 		})
 		if err == nil {
-			if req.Sender != "" {
-				_ = h.Store.PushInboxMessage(r.Context(), req.Recipient, req.Sender, string(eventPayload), ttl)
+			targets := []string{
+				req.Recipient,
+				strings.ToUpper(req.Recipient),
+				strings.ToLower(req.Recipient),
+				"PV-" + strings.ToUpper(strings.TrimPrefix(req.Recipient, "PV-")),
+				strings.TrimPrefix(strings.ToUpper(req.Recipient), "PV-"),
 			}
-			_ = h.Store.Publish(r.Context(), "stream:"+req.Recipient, string(eventPayload))
+			seen := make(map[string]bool)
+			for _, t := range targets {
+				if seen[t] {
+					continue
+				}
+				seen[t] = true
+				if req.Sender != "" {
+					_ = h.Store.PushInboxMessage(r.Context(), t, req.Sender, string(eventPayload), ttl)
+				}
+				_ = h.Store.Publish(r.Context(), "stream:"+t, string(eventPayload))
+			}
 		}
 	}
 
@@ -275,8 +289,24 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Subscribe to Redis channel: stream:<handle>
-	pubsub := h.Store.Subscribe(r.Context(), "stream:"+handle)
+	// Subscribe to Redis channel: stream:<handle> (and all casing/prefix variants)
+	channels := []string{
+		"stream:" + handle,
+		"stream:" + strings.ToUpper(handle),
+		"stream:" + strings.ToLower(handle),
+		"stream:" + "PV-" + strings.ToUpper(strings.TrimPrefix(handle, "PV-")),
+		"stream:" + strings.TrimPrefix(strings.ToUpper(handle), "PV-"),
+	}
+	seenCh := make(map[string]bool)
+	var uniqueChs []string
+	for _, c := range channels {
+		if !seenCh[c] {
+			seenCh[c] = true
+			uniqueChs = append(uniqueChs, c)
+		}
+	}
+
+	pubsub := h.Store.Subscribe(r.Context(), uniqueChs...)
 	if pubsub == nil {
 		return
 	}

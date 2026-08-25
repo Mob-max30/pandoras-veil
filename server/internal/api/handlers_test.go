@@ -108,7 +108,7 @@ func (f *fakeStore) Ping(context.Context) error {
 	return nil
 }
 
-func (f *fakeStore) Subscribe(_ context.Context, _ string) *redis.PubSub {
+func (f *fakeStore) Subscribe(_ context.Context, _ ...string) *redis.PubSub {
 	return nil
 }
 
