@@ -12,11 +12,14 @@ import (
 )
 
 type PasteHandler struct {
-	Store *storage.MemoryStore
+	Store  *storage.MemoryStore
+	Broker *StreamBroker
 }
 
 type CreatePasteRequest struct {
 	Ciphertext       string `json:"ciphertext"`
+	Recipient        string `json:"recipient,omitempty"`
+	Sender           string `json:"sender,omitempty"`
 	TTLSeconds       int    `json:"ttl_seconds"`
 	BurnAfterReading bool   `json:"burn_after_reading"`
 }
@@ -56,6 +59,10 @@ func (h *PasteHandler) HandleCreatePaste(w http.ResponseWriter, r *http.Request)
 	if err := h.Store.SavePaste(pasteID, req.Ciphertext, req.TTLSeconds, req.BurnAfterReading); err != nil {
 		http.Error(w, "Failed to save secret", http.StatusInternalServerError)
 		return
+	}
+
+	if h.Broker != nil && req.Recipient != "" {
+		h.Broker.Broadcast(req.Recipient, pasteID, req.Ciphertext, req.Sender)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

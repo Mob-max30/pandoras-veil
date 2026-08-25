@@ -17,8 +17,9 @@ func main() {
 	}
 
 	store := storage.NewMemoryStore()
+	broker := handlers.NewStreamBroker()
 	keyHandler := &handlers.KeyHandler{Store: store}
-	pasteHandler := &handlers.PasteHandler{Store: store}
+	pasteHandler := &handlers.PasteHandler{Store: store, Broker: broker}
 
 	mux := http.NewServeMux()
 
@@ -32,6 +33,8 @@ func main() {
 
 	mux.HandleFunc("/paste", pasteHandler.HandleCreatePaste)
 	mux.HandleFunc("/paste/", pasteHandler.HandleGetPaste)
+
+	mux.HandleFunc("/stream", broker.HandleStream)
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("==================================================")

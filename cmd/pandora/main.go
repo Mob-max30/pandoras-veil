@@ -12,20 +12,22 @@ const Version = "1.0.0-beta"
 func printGlobalUsage(ui *UI) {
 	ui.Banner()
 	fmt.Fprintf(ui.Out, "%sUSAGE:%s\n", ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  pandora <command> [arguments] [options]\n\n")
+	fmt.Fprintf(ui.Out, "  pv <command> [arguments] [options]\n")
+	fmt.Fprintf(ui.Out, "  (or: pandora <command> ...)\n\n")
 	fmt.Fprintf(ui.Out, "%sCOMMANDS:%s\n", ColorBold, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sinit%s      Initialize local device cryptographic identity & register with relay\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sidentity%s  Display this device's handle, public key, and fingerprint\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %ssend%s      Encrypt a secret locally and store encrypted envelope on relay\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sread%s      Retrieve and decrypt a secret using local device private key\n", ColorGreen, ColorReset)
+	fmt.Fprintf(ui.Out, "  %schat%s      Start real-time end-to-end encrypted live terminal chat\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sversion%s   Print version information\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %shelp%s      Show this help menu\n\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "%sEXAMPLES:%s\n", ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  pandora init --handle PV-ALICE\n")
-	fmt.Fprintf(ui.Out, "  pandora identity\n")
-	fmt.Fprintf(ui.Out, "  pandora send --to PV-BOB \"Secret password123\"\n")
-	fmt.Fprintf(ui.Out, "  pandora send --to PV-BOB --file ./api_keys.env --burn\n")
-	fmt.Fprintf(ui.Out, "  pandora read pv_1700000000000000000\n\n")
+	fmt.Fprintf(ui.Out, "  pv init --handle PV-ALICE\n")
+	fmt.Fprintf(ui.Out, "  pv identity\n")
+	fmt.Fprintf(ui.Out, "  pv chat --with PV-BOB\n")
+	fmt.Fprintf(ui.Out, "  pv send --to PV-BOB \"Secret password123\"\n")
+	fmt.Fprintf(ui.Out, "  pv read pv_1700000000000000000\n\n")
 }
 
 func main() {
@@ -50,6 +52,8 @@ func main() {
 		exitCode = runSend(args, ui, apiClient)
 	case "read":
 		exitCode = runRead(args, ui, apiClient)
+	case "chat":
+		exitCode = runChat(args, ui, apiClient)
 	case "version", "-v", "--version":
 		fmt.Fprintf(ui.Out, "Pandora's Veil CLI v%s\n", Version)
 		exitCode = 0

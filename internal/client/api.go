@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,8 @@ type KeyInfo struct {
 // PasteCreateRequest represents payload to store encrypted secret
 type PasteCreateRequest struct {
 	Ciphertext       string `json:"ciphertext"`
+	Recipient        string `json:"recipient,omitempty"`
+	Sender           string `json:"sender,omitempty"`
 	TTLSeconds       int    `json:"ttl_seconds"`
 	BurnAfterReading bool   `json:"burn_after_reading"`
 }
@@ -48,12 +51,21 @@ type PasteResponse struct {
 	Ciphertext string `json:"ciphertext"`
 }
 
+// StreamEvent represents incoming live message event
+type StreamEvent struct {
+	ID         string `json:"id"`
+	Ciphertext string `json:"ciphertext"`
+	Sender     string `json:"sender,omitempty"`
+}
+
 // Client defines the contract for relay communication
 type Client interface {
 	RegisterKey(handle, publicKey string) (*KeyInfo, error)
 	GetKey(handle string) (*KeyInfo, error)
 	PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
+	PostChatMessage(recipient, sender, ciphertext string) (string, error)
 	GetPaste(id string) (string, error)
+	ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error
 	Health() error
 }
 
@@ -162,6 +174,78 @@ func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 	return createResp.ID, nil
 }
 
+// PostChatMessage calls POST /paste with recipient and sender routing metadata
+func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
+	reqBody := PasteCreateRequest{
+		Ciphertext:       ciphertext,
+		Recipient:        recipient,
+		Sender:           sender,
+		TTLSeconds:       86400,
+		BurnAfterReading: false,
+	}
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	resp, err := c.HTTPClient.Post(c.BaseURL+"/paste", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("relay returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var createResp PasteCreateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+	return createResp.ID, nil
+}
+
+// ListenStream opens an SSE connection to GET /stream?handle=<handle> and streams incoming events
+func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
+	streamURL := fmt.Sprintf("%s/stream?handle=%s", c.BaseURL, handle)
+	req, err := http.NewRequest("GET", streamURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create stream request: %w", err)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+
+	// Use custom client without short timeout for long-lived SSE stream
+	streamClient := &http.Client{Timeout: 0}
+	resp, err := streamClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("stream connection failed with status %d", resp.StatusCode)
+	}
+
+	go func() {
+		<-stopCh
+		resp.Body.Close()
+	}()
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data: ") {
+			payload := strings.TrimPrefix(line, "data: ")
+			var event StreamEvent
+			if err := json.Unmarshal([]byte(payload), &event); err == nil {
+				onMessage(event)
+			}
+		}
+	}
+	return nil
+}
+
 // GetPaste calls GET /paste/:id
 func (c *HTTPClient) GetPaste(id string) (string, error) {
 	resp, err := c.HTTPClient.Get(fmt.Sprintf("%s/paste/%s", c.BaseURL, id))
@@ -247,6 +331,18 @@ func (m *MockClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 	return id, nil
 }
 
+func (m *MockClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
+	id := fmt.Sprintf("pv_%d", time.Now().UnixNano())
+	m.Pastes[id] = PasteCreateRequest{
+		Ciphertext:       ciphertext,
+		Recipient:        recipient,
+		Sender:           sender,
+		TTLSeconds:       86400,
+		BurnAfterReading: false,
+	}
+	return id, nil
+}
+
 func (m *MockClient) GetPaste(id string) (string, error) {
 	paste, exists := m.Pastes[id]
 	if !exists {
@@ -256,6 +352,11 @@ func (m *MockClient) GetPaste(id string) (string, error) {
 		delete(m.Pastes, id)
 	}
 	return paste.Ciphertext, nil
+}
+
+func (m *MockClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
+	<-stopCh
+	return nil
 }
 
 func (m *MockClient) Health() error {
