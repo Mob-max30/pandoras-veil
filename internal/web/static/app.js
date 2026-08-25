@@ -407,17 +407,21 @@ function connectSSEStream() {
                 let isFile = false;
                 let fileName = '';
                 let fileSize = '';
+                let fileType = '';
                 let fileData = '';
                 let previewText = data.text;
 
                 try {
-                    if (typeof data.text === 'string' && data.text.startsWith('{"__pv_file":true')) {
+                    if (typeof data.text === 'string' && (data.text.includes('"__pv_file"') || data.text.includes('"is_file"'))) {
                         const fileObj = JSON.parse(data.text);
-                        isFile = true;
-                        fileName = fileObj.name || 'attachment';
-                        fileSize = fileObj.size || '';
-                        fileData = fileObj.data || '';
-                        previewText = `📎 ${fileName}`;
+                        if (fileObj.__pv_file || fileObj.is_file) {
+                            isFile = true;
+                            fileName = fileObj.name || fileObj.filename || 'attachment';
+                            fileSize = fileObj.size || '';
+                            fileType = fileObj.type || fileObj.mime || '';
+                            fileData = fileObj.data || fileObj.data_b64 || '';
+                            previewText = `📎 ${fileName}`;
+                        }
                     }
                 } catch (e) {}
 
@@ -428,6 +432,7 @@ function connectSSEStream() {
                     isFile: isFile,
                     fileName: fileName,
                     fileSize: fileSize,
+                    fileType: fileType,
                     fileData: fileData,
                     timestamp: timestamp,
                     ttl: msgTTL,
@@ -492,8 +497,8 @@ function appendBubble(msg) {
                 msg.isFile = true;
                 msg.fileName = parsed.name || parsed.filename || 'attachment';
                 msg.fileSize = parsed.size || '';
-                msg.fileType = parsed.type || '';
-                msg.fileData = parsed.data || (parsed.data_b64 ? `data:application/octet-stream;base64,${parsed.data_b64}` : '');
+                msg.fileType = parsed.type || parsed.mime || '';
+                msg.fileData = parsed.data || parsed.data_b64 || '';
             }
         } catch (e) {}
     }
@@ -506,19 +511,32 @@ function appendBubble(msg) {
         const isImage = (msg.fileType && msg.fileType.startsWith('image/')) ||
                         (msg.fileName && msg.fileName.match(/\.(jpeg|jpg|png|gif|webp|svg|bmp)$/i));
 
+        // Format data URI correctly
+        let srcUrl = msg.fileData || '';
+        if (srcUrl && !srcUrl.startsWith('data:') && !srcUrl.startsWith('blob:') && !srcUrl.startsWith('http')) {
+            let mime = msg.fileType;
+            if (!mime) {
+                if (msg.fileName && msg.fileName.match(/\.png$/i)) mime = 'image/png';
+                else if (msg.fileName && msg.fileName.match(/\.gif$/i)) mime = 'image/gif';
+                else if (msg.fileName && msg.fileName.match(/\.webp$/i)) mime = 'image/webp';
+                else mime = 'image/jpeg';
+            }
+            srcUrl = `data:${mime};base64,${srcUrl}`;
+        }
+
         const fileCard = document.createElement('div');
         fileCard.className = 'pv-file-card';
-        fileCard.style.cursor = msg.fileData ? 'pointer' : 'default';
+        fileCard.style.cursor = srcUrl ? 'pointer' : 'default';
 
-        if (isImage && msg.fileData) {
+        if (isImage && srcUrl) {
             fileCard.style.flexDirection = 'column';
             fileCard.style.alignItems = 'flex-start';
-            fileCard.style.padding = '10px';
+            fileCard.style.padding = '12px';
             fileCard.style.maxWidth = '300px';
 
             fileCard.innerHTML = `
                 <div style="width:100%; max-height:220px; overflow:hidden; border-radius:10px; margin-bottom:8px; background:#07120e; display:flex; align-items:center; justify-content:center;">
-                    <img src="${msg.fileData}" alt="${msg.fileName || 'image'}" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:8px; display:block;">
+                    <img src="${srcUrl}" alt="${msg.fileName || 'image'}" onerror="this.parentElement.style.display='none';" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:8px; display:block;">
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
                     <div class="pv-file-meta" style="flex:1; overflow:hidden;">
@@ -536,15 +554,15 @@ function appendBubble(msg) {
                 <div class="pv-file-meta">
                     <div class="pv-file-name">${msg.fileName || 'file'}</div>
                     <div class="pv-file-size">${msg.fileSize || 'Attachment'}</div>
-                    <div class="pv-file-status">${msg.fileData ? '⬇ Click to download' : '✓ Transmitted'}</div>
+                    <div class="pv-file-status">${srcUrl ? '⬇ Click to download' : '✓ Transmitted'}</div>
                 </div>
             `;
         }
 
-        if (msg.fileData) {
+        if (srcUrl) {
             fileCard.onclick = () => {
                 const a = document.createElement('a');
-                a.href = msg.fileData;
+                a.href = srcUrl;
                 a.download = msg.fileName || 'attachment';
                 document.body.appendChild(a);
                 a.click();
