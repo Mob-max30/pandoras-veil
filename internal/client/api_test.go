@@ -284,3 +284,53 @@ func TestNetworkFailure(t *testing.T) {
 		t.Errorf("expected ErrNetwork, got %v", err)
 	}
 }
+
+// 9. Test PostChatMessage sends exact frozen /paste schema without recipient or sender
+func TestPostChatMessage_SendsFrozenPasteSchema(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/paste" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "bad route", http.StatusBadRequest)
+			return
+		}
+
+		var rawMap map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&rawMap); err != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+
+		if _, exists := rawMap["recipient"]; exists {
+			t.Errorf("request body contains prohibited field 'recipient'")
+		}
+		if _, exists := rawMap["sender"]; exists {
+			t.Errorf("request body contains prohibited field 'sender'")
+		}
+		if _, exists := rawMap["ciphertext"]; !exists {
+			t.Errorf("request body missing required field 'ciphertext'")
+		}
+		if _, exists := rawMap["ttl_seconds"]; !exists {
+			t.Errorf("request body missing required field 'ttl_seconds'")
+		}
+		if _, exists := rawMap["burn_after_reading"]; !exists {
+			t.Errorf("request body missing required field 'burn_after_reading'")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"id": "chat-paste-id-999",
+		})
+	}))
+	defer ts.Close()
+
+	c := client.NewHTTPClient(ts.URL)
+	id, err := c.PostChatMessage("PV-UJWAL", "PV-PRANAV", "SGVsbG8=")
+	if err != nil {
+		t.Fatalf("PostChatMessage failed: %v", err)
+	}
+	if id != "chat-paste-id-999" {
+		t.Errorf("expected ID 'chat-paste-id-999', got '%s'", id)
+	}
+}
+
