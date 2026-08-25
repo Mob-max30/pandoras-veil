@@ -120,11 +120,10 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		fpDetails = fmt.Sprintf("Device Fingerprint: [%s]", members[0].fingerprint)
 	}
 
-	ui.Banner()
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  🔒 %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
-	fmt.Fprintf(ui.Out, "  ⚡ %s%s%s | Zero Knowledge Relay Active\n", ColorYellow, fpDetails, ColorReset)
-	fmt.Fprintf(ui.Out, "  👉 Type your message and press [Enter] to send. Press [Ctrl+C] or /quit to exit.\n")
+	fmt.Fprintf(ui.Out, "  %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
+	fmt.Fprintf(ui.Out, "  %s%s%s | Zero Knowledge Relay Active\n", ColorYellow, fpDetails, ColorReset)
+	fmt.Fprintf(ui.Out, "  Type your message and press [Enter] to send. Press [Ctrl+C] or /quit to exit.\n")
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
 
 	var printMu sync.Mutex

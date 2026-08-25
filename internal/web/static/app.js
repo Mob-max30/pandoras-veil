@@ -357,7 +357,7 @@ function toggleProfileModal() {
             <div><strong style="color:#636765;">Handle:</strong> <span style="font-weight:600;">${state.myHandle}</span></div>
             <div><strong style="color:#636765;">Fingerprint:</strong> <span style="color:var(--linen-card-green); font-family:var(--font-mono); font-weight:600;">${state.myFingerprint}</span></div>
             <div><strong style="color:#636765;">Public Key:</strong> <div style="font-size:0.75rem; color:#787b78; word-break:break-all; font-family:var(--font-mono); margin-top:6px; background:#fff; padding:10px; border-radius:8px;">${state.myPublicKey}</div></div>
-            <div style="color:var(--linen-card-green); font-size:0.82rem; margin-top:4px;">🔒 Cryptographic keypair secured on physical device (0600 permissions).</div>
+            <div style="color:var(--linen-card-green); font-size:0.82rem; margin-top:4px;">Keypair secured on physical device.</div>
         </div>
     `);
 }
@@ -367,8 +367,8 @@ function openContactDetailsModal() {
         <div style="display:flex; flex-direction:column; gap:16px; font-size:0.92rem; color:var(--linen-text-dark);">
             <div><strong style="color:#636765;">Handle:</strong> <span>${state.activeTarget}</span></div>
             <div><strong style="color:#636765;">Device Fingerprint:</strong> <span style="font-family:var(--font-mono); color:var(--linen-card-green); font-weight:600;">${state.activeTargetFP}</span></div>
-            <div><strong style="color:#636765;">Encryption Suite:</strong> <span>age / X25519 Native Go Bridge</span></div>
-            <div><strong style="color:#636765;">Relay Status:</strong> <span style="color:var(--linen-online); font-weight:600;">Connected</span></div>
+            <div><strong style="color:#636765;">Encryption:</strong> <span>age / X25519 Native Go Bridge</span></div>
+            <div><strong style="color:#636765;">Status:</strong> <span style="color:var(--linen-online); font-weight:600;">Connected</span></div>
         </div>
     `);
 }

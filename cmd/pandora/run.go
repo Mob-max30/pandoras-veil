@@ -97,14 +97,13 @@ func runWeb(args []string, ui *UI, apiClient client.RelayClient) int {
 
 	localURL := fmt.Sprintf("http://localhost:%d", port)
 
-	ui.Banner()
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  🌐 %sPANDORA'S VEIL WEB DASHBOARD RUNNING%s\n", ColorGreen+ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  👉 %sLocal URL:%s  %s%s%s\n", ColorBold, ColorReset, ColorYellow+ColorBold, localURL, ColorReset)
-	fmt.Fprintf(ui.Out, "  🔒 %sDevice:%s     %s%s%s (Fingerprint: %s%s%s)\n", ColorBold, ColorReset, ColorCyan, idFile.Handle, ColorReset, ColorYellow, idFile.Fingerprint, ColorReset)
-	fmt.Fprintf(ui.Out, "  🛡️  %sFirewall:%s   %sDNS Rebinding & Localhost CSRF Protected (Token: %s..)%s\n", ColorBold, ColorReset, ColorGreen, webServer.SessionToken()[:8], ColorReset)
-	fmt.Fprintf(ui.Out, "  ☁️  %sRelay:%s      %s%s%s\n", ColorBold, ColorReset, ColorDim, *relayFlag, ColorReset)
-	fmt.Fprintf(ui.Out, "  ⚡ %sZero-Knowledge E2E Encryption Active (Native Go age/X25519)%s\n", ColorGreen, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sPANDORA'S VEIL WEB DASHBOARD RUNNING%s\n", ColorGreen+ColorBold, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sLocal URL:%s  %s%s%s\n", ColorBold, ColorReset, ColorYellow+ColorBold, localURL, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sDevice:%s     %s%s%s (Fingerprint: %s%s%s)\n", ColorBold, ColorReset, ColorCyan, idFile.Handle, ColorReset, ColorYellow, idFile.Fingerprint, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sFirewall:%s   %sDNS Rebinding & Localhost CSRF Protected (Token: %s..)%s\n", ColorBold, ColorReset, ColorGreen, webServer.SessionToken()[:8], ColorReset)
+	fmt.Fprintf(ui.Out, "  %sRelay:%s      %s%s%s\n", ColorBold, ColorReset, ColorDim, *relayFlag, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sZero-Knowledge E2E Encryption Active (Native Go age/X25519)%s\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
 	fmt.Fprintf(ui.Out, "%s[i] Press [Ctrl+C] to stop the local web server.%s\n\n", ColorDim, ColorReset)
 
