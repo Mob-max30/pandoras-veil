@@ -27,107 +27,9 @@
                 </div>
             </div>
 
-            <!-- Conversation List -->
+            <!-- Dynamic Conversation List -->
             <div class="correspondence-list" id="chats-list">
-                <!-- Item 1: Active Amara Kessler / Pranav -->
-                <div class="chat-card active" data-handle="PV-PRANAV" data-name="Amara Kessler" data-fp="1E42-2834" data-type="dm" data-avatar="AK" data-avatar-color="avatar-sand">
-                    <div class="avatar avatar-sand">AK</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Amara Kessler</span>
-                            <span class="card-time" id="time-PV-PRANAV">09:41</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet" id="preview-PV-PRANAV">Can you send the revised deck b...</span>
-                            <span class="unread-pill">2</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 2: Dev Ramanathan -->
-                <div class="chat-card" data-handle="PV-DEV" data-name="Dev Ramanathan" data-fp="7C11-884A" data-type="dm" data-avatar="DR" data-avatar-color="avatar-sage">
-                    <div class="avatar avatar-sage">DR</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Dev Ramanathan</span>
-                            <span class="card-time">08:57</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Sounds good — see you at the studio.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 3: Studio Nine (Group) -->
-                <div class="chat-card" data-handle="Studio-Nine" data-name="Studio Nine" data-members="PV-PRANAV,PV-ALICE,PV-BOB" data-type="group" data-avatar="SN" data-avatar-color="avatar-blush">
-                    <div class="avatar avatar-blush">SN</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Studio Nine</span>
-                            <span class="card-time">Yst</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Priya: invoices are attached below</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 4: Leo Ferreira -->
-                <div class="chat-card" data-handle="PV-LEO" data-name="Leo Ferreira" data-fp="915E-B66D" data-type="dm" data-avatar="LF" data-avatar-color="avatar-clay">
-                    <div class="avatar avatar-clay">LF</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Leo Ferreira</span>
-                            <span class="card-time">Yst</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Ha — fair point, noted.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 5: Mira Okafor -->
-                <div class="chat-card" data-handle="PV-MIRA" data-name="Mira Okafor" data-fp="47B7-9F60" data-type="dm" data-avatar="MO" data-avatar-color="avatar-charcoal">
-                    <div class="avatar avatar-charcoal">MO</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Mira Okafor</span>
-                            <span class="card-time">Mon</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Voice note • 0:34</span>
-                            <span class="unread-pill">1</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 6: Tomas Weber -->
-                <div class="chat-card" data-handle="PV-TOMAS" data-name="Tomas Weber" data-fp="33A1-7092" data-type="dm" data-avatar="TW" data-avatar-color="avatar-sand">
-                    <div class="avatar avatar-sand">TW</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Tomas Weber</span>
-                            <span class="card-time">Mon</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Booked the flights, confirmation below.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Item 7: Home / Family -->
-                <div class="chat-card" data-handle="Family" data-name="Home" data-type="group" data-avatar="Fam" data-avatar-color="avatar-sage">
-                    <div class="avatar avatar-sage">Fam</div>
-                    <div class="chat-card-content">
-                        <div class="chat-card-header">
-                            <span class="contact-card-name">Home</span>
-                            <span class="card-time">Sun</span>
-                        </div>
-                        <div class="chat-card-footer">
-                            <span class="card-snippet">Dad: dinner's at 7 on Saturday</span>
-                        </div>
-                    </div>
-                </div>
+                <!-- Dynamically populated from local persistent connection history -->
             </div>
 
             <!-- Bottom User Identity Badge -->
@@ -148,9 +50,9 @@
             <!-- Workspace Header -->
             <header class="workspace-header">
                 <div class="contact-profile-section" onclick="openContactDetailsModal()">
-                    <div class="avatar avatar-sand" id="active-header-avatar">AK</div>
+                    <div class="avatar avatar-sand" id="active-header-avatar">P</div>
                     <div class="contact-title-group">
-                        <h2 class="active-contact-title" id="active-contact-title">Amara Kessler</h2>
+                        <h2 class="active-contact-title" id="active-contact-title">PV-PRANAV</h2>
                         <div class="active-status-line">
                             <span class="status-dot"></span>
                             <span id="active-status-text">Active now</span>
@@ -172,7 +74,7 @@
                 </div>
             </header>
 
-            <!-- Scrollable Messages Flow on Linen Textured Surface -->
+            <!-- Scrollable Messages Flow on Linen Canvas -->
             <div class="chat-canvas-scroll" id="chat-messages-scroll">
                 <div class="canvas-flow" id="chat-messages-container">
                     <!-- Centered Dotted Today Separator -->
@@ -180,44 +82,6 @@
                         <span class="sep-line"></span>
                         <span class="sep-label">TODAY</span>
                         <span class="sep-line"></span>
-                    </div>
-
-                    <!-- Amara Message 1 -->
-                    <div class="linen-bubble-group incoming-group">
-                        <div class="linen-card incoming-card">
-                            <p>Morning — how's the highway dataset labeling coming along?</p>
-                        </div>
-                        <span class="bubble-time-stamp">09:12</span>
-                    </div>
-
-                    <!-- My Response 1 -->
-                    <div class="linen-bubble-group outgoing-group">
-                        <div class="linen-card outgoing-card">
-                            <p>About 70% through. Frame extraction was slower than expected but accuracy's holding up well.</p>
-                        </div>
-                    </div>
-
-                    <!-- Amara Message 2 -->
-                    <div class="linen-bubble-group incoming-group">
-                        <div class="linen-card incoming-card">
-                            <p>Great — that lines up well with the review timeline.</p>
-                        </div>
-                        <span class="bubble-time-stamp">09:20</span>
-                    </div>
-
-                    <!-- Amara Message 3 -->
-                    <div class="linen-bubble-group incoming-group">
-                        <div class="linen-card incoming-card">
-                            <p>Can you send the revised deck before noon?</p>
-                        </div>
-                        <span class="bubble-time-stamp">09:41</span>
-                    </div>
-
-                    <!-- My Response 2 -->
-                    <div class="linen-bubble-group outgoing-group">
-                        <div class="linen-card outgoing-card">
-                            <p>Yep, finishing the last two slides now. Will have it to you by 11:30.</p>
-                        </div>
                     </div>
                 </div>
             </div>

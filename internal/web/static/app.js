@@ -1,103 +1,132 @@
 // ==========================================================================
-// PANDORA'S VEIL | Linen Aesthetic Logic & Zero-Knowledge Crypto Bridge
+// PANDORA'S VEIL | Linen Aesthetic Logic & Persistent Connection History
 // ==========================================================================
+
+const AVATAR_COLORS = [
+    'avatar-sand',
+    'avatar-sage',
+    'avatar-blush',
+    'avatar-clay',
+    'avatar-charcoal'
+];
+
+function getAvatarColor(handle) {
+    let hash = 0;
+    for (let i = 0; i < handle.length; i++) {
+        hash = handle.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[idx];
+}
+
+function getInitials(handle) {
+    const clean = handle.replace(/^PV-/, '').replace(/^#/, '');
+    const parts = clean.split(/[\s_-]+/);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return clean.slice(0, 2).toUpperCase() || 'P';
+}
+
+const DEFAULT_CONTACTS = [
+    {
+        handle: 'PV-PRANAV',
+        name: 'Pranav',
+        fp: '1E42-2834',
+        type: 'dm',
+        lastMessage: 'Live end-to-end encrypted session active.',
+        time: '21:10'
+    },
+    {
+        handle: 'PV-PAVAN',
+        name: 'Pavan',
+        fp: '7C11-884A',
+        type: 'dm',
+        lastMessage: 'Redis TTL offline queueing verified.',
+        time: '20:55'
+    },
+    {
+        handle: 'Development',
+        name: 'Development',
+        fp: 'Group',
+        type: 'group',
+        members: ['PV-PRANAV', 'PV-PAVAN', 'PV-ALICE', 'PV-BOB'],
+        lastMessage: 'Alice: Deployment verified on Render.',
+        time: 'Yesterday'
+    },
+    {
+        handle: 'PV-BOB',
+        name: 'Bob',
+        fp: '915E-B66D',
+        type: 'dm',
+        lastMessage: 'Key verified: 915E-B66D',
+        time: 'Yesterday'
+    },
+    {
+        handle: 'PV-ALICE',
+        name: 'Alice',
+        fp: '47B7-9F60',
+        type: 'dm',
+        lastMessage: 'Device key registered.',
+        time: '22/08'
+    }
+];
+
+const DEFAULT_CONVERSATIONS = {
+    'PV-PRANAV': [
+        {
+            sender: 'PV-PRANAV',
+            text: 'Live end-to-end encrypted session active on Pandora\'s Veil.',
+            timestamp: '21:10',
+            isOutgoing: false
+        }
+    ],
+    'PV-PAVAN': [
+        {
+            sender: 'PV-PAVAN',
+            text: 'Redis TTL offline queueing verified on cloud relay.',
+            timestamp: '20:55',
+            isOutgoing: false
+        }
+    ],
+    'Development': [
+        {
+            sender: 'PV-ALICE',
+            text: 'Deployment verified on Render relay.',
+            timestamp: 'Yesterday',
+            isOutgoing: false
+        }
+    ],
+    'PV-BOB': [
+        {
+            sender: 'PV-BOB',
+            text: 'Connected. Device fingerprint 915E-B66D confirmed.',
+            timestamp: 'Yesterday',
+            isOutgoing: false
+        }
+    ],
+    'PV-ALICE': [
+        {
+            sender: 'PV-ALICE',
+            text: 'Device key registered.',
+            timestamp: '22/08',
+            isOutgoing: false
+        }
+    ]
+};
 
 const state = {
     myHandle: 'PV-UJWAL',
     myFingerprint: 'BA64-5843',
     myPublicKey: 'age1q8ulqk4630rwqwavdst4fegn9st2zmrqdczvrx4uec9cmu6ah55swres5x',
     activeTarget: 'PV-PRANAV',
-    activeDisplayName: 'Amara Kessler',
-    activeTargetFP: '1E42-2834',
-    activeAvatar: 'AK',
-    activeAvatarColor: 'avatar-sand',
     isGroup: false,
-    groupMembers: ['PV-PRANAV', 'PV-ALICE', 'PV-BOB'],
+    groupMembers: ['PV-PRANAV', 'PV-PAVAN', 'PV-ALICE', 'PV-BOB'],
     ttl: 300,
     burnAfterReading: true,
     eventSource: null,
-    conversations: {
-        'PV-PRANAV': [
-            {
-                sender: 'Amara Kessler',
-                text: 'Morning — how\'s the highway dataset labeling coming along?',
-                timestamp: '09:12',
-                isOutgoing: false
-            },
-            {
-                sender: 'PV-UJWAL',
-                text: 'About 70% through. Frame extraction was slower than expected but accuracy\'s holding up well.',
-                timestamp: '09:15',
-                isOutgoing: true
-            },
-            {
-                sender: 'Amara Kessler',
-                text: 'Great — that lines up well with the review timeline.',
-                timestamp: '09:20',
-                isOutgoing: false
-            },
-            {
-                sender: 'Amara Kessler',
-                text: 'Can you send the revised deck before noon?',
-                timestamp: '09:41',
-                isOutgoing: false
-            },
-            {
-                sender: 'PV-UJWAL',
-                text: 'Yep, finishing the last two slides now. Will have it to you by 11:30.',
-                timestamp: '09:44',
-                isOutgoing: true
-            }
-        ],
-        'PV-DEV': [
-            {
-                sender: 'Dev Ramanathan',
-                text: 'Sounds good — see you at the studio.',
-                timestamp: '08:57',
-                isOutgoing: false
-            }
-        ],
-        'Studio-Nine': [
-            {
-                sender: 'Priya',
-                text: 'Invoices are attached below for Q3 milestone.',
-                timestamp: 'Yesterday',
-                isOutgoing: false
-            }
-        ],
-        'PV-LEO': [
-            {
-                sender: 'Leo Ferreira',
-                text: 'Ha — fair point, noted.',
-                timestamp: 'Yesterday',
-                isOutgoing: false
-            }
-        ],
-        'PV-MIRA': [
-            {
-                sender: 'Mira Okafor',
-                text: 'Encrypted voice note payload received.',
-                timestamp: 'Monday',
-                isOutgoing: false
-            }
-        ],
-        'PV-TOMAS': [
-            {
-                sender: 'Tomas Weber',
-                text: 'Booked the flights, confirmation below.',
-                timestamp: 'Monday',
-                isOutgoing: false
-            }
-        ],
-        'Family': [
-            {
-                sender: 'Dad',
-                text: 'Dinner\'s at 7 on Saturday',
-                timestamp: 'Sunday',
-                isOutgoing: false
-            }
-        ]
-    }
+    contacts: [],
+    conversations: {}
 };
 
 function getAuthToken() {
@@ -105,10 +134,51 @@ function getAuthToken() {
     return meta ? meta.getAttribute('content') : '';
 }
 
+// Persistence Utilities
+function loadPersistedData() {
+    try {
+        const savedContacts = localStorage.getItem('pandora_contacts_v2');
+        const savedConvs = localStorage.getItem('pandora_conversations_v2');
+        const savedTarget = localStorage.getItem('pandora_active_target_v2');
+
+        if (savedContacts) {
+            state.contacts = JSON.parse(savedContacts);
+        } else {
+            state.contacts = DEFAULT_CONTACTS;
+        }
+
+        if (savedConvs) {
+            state.conversations = JSON.parse(savedConvs);
+        } else {
+            state.conversations = DEFAULT_CONVERSATIONS;
+        }
+
+        if (savedTarget && state.contacts.some(c => c.handle === savedTarget)) {
+            state.activeTarget = savedTarget;
+        } else if (state.contacts.length > 0) {
+            state.activeTarget = state.contacts[0].handle;
+        }
+    } catch (e) {
+        state.contacts = DEFAULT_CONTACTS;
+        state.conversations = DEFAULT_CONVERSATIONS;
+    }
+}
+
+function savePersistedData() {
+    try {
+        localStorage.setItem('pandora_contacts_v2', JSON.stringify(state.contacts));
+        localStorage.setItem('pandora_conversations_v2', JSON.stringify(state.conversations));
+        localStorage.setItem('pandora_active_target_v2', state.activeTarget);
+    } catch (e) {
+        console.warn('Failed to save to localStorage:', e);
+    }
+}
+
 // DOM Elements
 const myHandleEl = document.getElementById('my-handle');
 const myFingerprintEl = document.getElementById('my-fingerprint');
 const myAvatarEl = document.getElementById('my-avatar');
+const chatsListEl = document.getElementById('chats-list');
 const activeHeaderAvatarEl = document.getElementById('active-header-avatar');
 const activeContactTitleEl = document.getElementById('active-contact-title');
 const activeFpSubtleEl = document.getElementById('active-fp-subtle');
@@ -123,6 +193,8 @@ const chatSearchEl = document.getElementById('chat-search');
 
 // 1. Initialize App & Connect to Stream
 async function initApp() {
+    loadPersistedData();
+
     try {
         const token = getAuthToken();
         const res = await fetch('/api/identity', {
@@ -136,18 +208,99 @@ async function initApp() {
 
             myHandleEl.textContent = state.myHandle;
             myFingerprintEl.textContent = `FP: ${state.myFingerprint}`;
-            myAvatarEl.textContent = state.myHandle.replace('PV-', '').charAt(0) || 'U';
+            myAvatarEl.textContent = getInitials(state.myHandle).charAt(0) || 'U';
         }
     } catch (err) {
         console.warn('Failed to load local identity:', err);
     }
 
+    renderCorrespondenceSidebar();
     setupEventListeners();
     connectSSEStream();
     renderActiveConversation();
 }
 
-// 2. Server-Sent Events Stream Bridge (Go handles decryption)
+// 2. Render Correspondence List in Sidebar
+function renderCorrespondenceSidebar() {
+    chatsListEl.innerHTML = '';
+
+    state.contacts.forEach(contact => {
+        const initials = getInitials(contact.name || contact.handle);
+        const colorClass = getAvatarColor(contact.handle);
+        const isActive = contact.handle === state.activeTarget;
+
+        const card = document.createElement('div');
+        card.className = `chat-card ${isActive ? 'active' : ''}`;
+        card.setAttribute('data-handle', contact.handle);
+        card.setAttribute('data-name', contact.name || contact.handle);
+        card.setAttribute('data-fp', contact.fp || 'Verified');
+        card.setAttribute('data-type', contact.type || 'dm');
+
+        card.innerHTML = `
+            <div class="avatar ${colorClass}">${initials}</div>
+            <div class="chat-card-content">
+                <div class="chat-card-header">
+                    <span class="contact-card-name">${contact.name || contact.handle}</span>
+                    <span class="card-time" id="time-${contact.handle}">${contact.time || ''}</span>
+                </div>
+                <div class="chat-card-footer">
+                    <span class="card-snippet" id="preview-${contact.handle}">${contact.lastMessage || 'Connected'}</span>
+                </div>
+            </div>
+        `;
+
+        card.addEventListener('click', () => {
+            selectContact(contact.handle);
+        });
+
+        chatsListEl.appendChild(card);
+    });
+
+    // Update active header details
+    const activeContact = state.contacts.find(c => c.handle === state.activeTarget);
+    if (activeContact) {
+        const initials = getInitials(activeContact.name || activeContact.handle);
+        const colorClass = getAvatarColor(activeContact.handle);
+
+        activeHeaderAvatarEl.textContent = initials;
+        activeHeaderAvatarEl.className = `avatar ${colorClass}`;
+        activeContactTitleEl.textContent = activeContact.name || activeContact.handle;
+        activeFpSubtleEl.textContent = `• ${activeContact.fp || 'Verified'}`;
+        state.isGroup = activeContact.type === 'group';
+    }
+}
+
+function selectContact(handle) {
+    state.activeTarget = handle;
+    savePersistedData();
+    renderCorrespondenceSidebar();
+    renderActiveConversation();
+    chatInputEl.focus();
+}
+
+function touchContact(handle, lastMsgText, timestamp, senderName) {
+    let contact = state.contacts.find(c => c.handle === handle);
+    if (!contact) {
+        contact = {
+            handle: handle,
+            name: senderName || handle,
+            fp: 'Verified',
+            type: handle.includes(',') ? 'group' : 'dm',
+            lastMessage: lastMsgText,
+            time: timestamp
+        };
+        state.contacts.unshift(contact);
+    } else {
+        contact.lastMessage = lastMsgText;
+        contact.time = timestamp;
+        // Move to top of list
+        state.contacts = [contact, ...state.contacts.filter(c => c.handle !== handle)];
+    }
+    savePersistedData();
+    renderCorrespondenceSidebar();
+}
+
+// 3. Connect to SSE Stream Bridge
 function connectSSEStream() {
     if (state.eventSource) {
         state.eventSource.close();
@@ -175,10 +328,7 @@ function connectSSEStream() {
                 }
                 state.conversations[senderName].push(msg);
 
-                const previewEl = document.getElementById(`preview-${senderName}`);
-                const timeEl = document.getElementById(`time-${senderName}`);
-                if (previewEl) previewEl.textContent = data.text;
-                if (timeEl) timeEl.textContent = timestamp;
+                touchContact(senderName, data.text, timestamp, senderName);
 
                 if (senderName === state.activeTarget || (state.isGroup && senderName !== state.myHandle)) {
                     appendLinenBubble(msg);
@@ -190,7 +340,7 @@ function connectSSEStream() {
     };
 }
 
-// 3. Render Active Conversation
+// 4. Render Active Conversation Messages
 function renderActiveConversation() {
     const separatorHTML = `
         <div class="linen-date-separator">
@@ -208,7 +358,7 @@ function renderActiveConversation() {
     scrollChatToBottom();
 }
 
-// 4. Append Linen Message Card
+// 5. Append Linen Message Bubble
 function appendLinenBubble(msg) {
     const groupEl = document.createElement('div');
     groupEl.className = `linen-bubble-group ${msg.isOutgoing ? 'outgoing-group' : 'incoming-group'}`;
@@ -236,7 +386,7 @@ function scrollChatToBottom() {
     chatMessagesScrollEl.scrollTop = chatMessagesScrollEl.scrollHeight;
 }
 
-// 5. Send Message (Native Go Encryption)
+// 6. Send Message
 async function handleSendMessage(e) {
     e.preventDefault();
     const text = chatInputEl.value.trim();
@@ -258,10 +408,7 @@ async function handleSendMessage(e) {
     state.conversations[state.activeTarget].push(msg);
     appendLinenBubble(msg);
 
-    const previewEl = document.getElementById(`preview-${state.activeTarget}`);
-    const timeEl = document.getElementById(`time-${state.activeTarget}`);
-    if (previewEl) previewEl.textContent = text;
-    if (timeEl) timeEl.textContent = timestamp;
+    touchContact(state.activeTarget, text, timestamp);
 
     try {
         const token = getAuthToken();
@@ -302,39 +449,9 @@ async function handleSendMessage(e) {
     }
 }
 
-// 6. Setup Event Listeners & Contact Switching
+// 7. Setup Event Listeners
 function setupEventListeners() {
     messageFormEl.addEventListener('submit', handleSendMessage);
-
-    // Chat Card Selection
-    document.querySelectorAll('.chat-card').forEach(card => {
-        card.addEventListener('click', () => {
-            document.querySelectorAll('.chat-card').forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-
-            const handle = card.getAttribute('data-handle');
-            const name = card.getAttribute('data-name');
-            const fp = card.getAttribute('data-fp') || 'Group';
-            const avatar = card.getAttribute('data-avatar') || name.charAt(0);
-            const avatarColor = card.getAttribute('data-avatar-color') || 'avatar-sand';
-            const type = card.getAttribute('data-type');
-
-            state.activeTarget = handle;
-            state.activeDisplayName = name;
-            state.activeTargetFP = fp;
-            state.activeAvatar = avatar;
-            state.activeAvatarColor = avatarColor;
-            state.isGroup = type === 'group';
-
-            activeContactTitleEl.textContent = name;
-            activeHeaderAvatarEl.textContent = avatar;
-            activeHeaderAvatarEl.className = `avatar ${avatarColor}`;
-            activeFpSubtleEl.textContent = `• ${fp}`;
-
-            renderActiveConversation();
-            chatInputEl.focus();
-        });
-    });
 
     // Chat Search Filter
     chatSearchEl.addEventListener('input', (e) => {
@@ -350,7 +467,7 @@ function setupEventListeners() {
     });
 }
 
-// 7. Modals
+// 8. Modals
 function toggleProfileModal() {
     openModal('Device Security Credentials', `
         <div style="display:flex; flex-direction:column; gap:16px; font-size:0.92rem; color:var(--linen-text-dark);">
@@ -363,10 +480,14 @@ function toggleProfileModal() {
 }
 
 function openContactDetailsModal() {
-    openModal(`${state.activeDisplayName}`, `
+    const contact = state.contacts.find(c => c.handle === state.activeTarget);
+    const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
+    const fp = contact ? (contact.fp || 'Verified') : 'Verified';
+
+    openModal(`${displayName}`, `
         <div style="display:flex; flex-direction:column; gap:16px; font-size:0.92rem; color:var(--linen-text-dark);">
             <div><strong style="color:#636765;">Handle:</strong> <span>${state.activeTarget}</span></div>
-            <div><strong style="color:#636765;">Device Fingerprint:</strong> <span style="font-family:var(--font-mono); color:var(--linen-card-green); font-weight:600;">${state.activeTargetFP}</span></div>
+            <div><strong style="color:#636765;">Device Fingerprint:</strong> <span style="font-family:var(--font-mono); color:var(--linen-card-green); font-weight:600;">${fp}</span></div>
             <div><strong style="color:#636765;">Encryption:</strong> <span>age / X25519 Native Go Bridge</span></div>
             <div><strong style="color:#636765;">Status:</strong> <span style="color:var(--linen-online); font-weight:600;">Connected</span></div>
         </div>
@@ -389,23 +510,19 @@ function startNewChatFromModal() {
     const input = document.getElementById('new-chat-handle-input');
     if (input && input.value.trim()) {
         const val = input.value.trim();
-        state.activeTarget = val;
-        state.activeDisplayName = val;
-        state.isGroup = val.includes(',');
-        activeContactTitleEl.textContent = val;
-        activeFpSubtleEl.textContent = '• Verified Key';
-        if (!state.conversations[val]) {
-            state.conversations[val] = [];
-        }
+        touchContact(val, 'Connected', formatTime(new Date()), val);
+        selectContact(val);
         closeModal();
-        renderActiveConversation();
     }
 }
 
 function openSecretDepositModal() {
+    const contact = state.contacts.find(c => c.handle === state.activeTarget);
+    const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
+
     openModal('Send Confidential Deposit (GETDEL)', `
         <div style="display:flex; flex-direction:column; gap:14px;">
-            <p style="color:#636765; font-size:0.88rem;">Enter confidential secret (API keys, recovery codes) to deposit for <strong>${state.activeDisplayName}</strong>:</p>
+            <p style="color:#636765; font-size:0.88rem;">Enter confidential secret (API keys, recovery codes) to deposit for <strong>${displayName}</strong>:</p>
             <textarea id="secret-deposit-textarea" rows="4" placeholder="Confidential payload..." style="width:100%; padding:12px 14px; background:#fff; border:1px solid #dfd8cc; color:#222725; border-radius:10px; font-family:var(--font-mono); font-size:0.88rem; outline:none;"></textarea>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
                 <span style="font-size:0.8rem; color:var(--linen-terracotta);">Burn-After-Reading: ON (${state.ttl}s TTL)</span>
@@ -453,9 +570,12 @@ async function submitSecretDepositFromModal() {
 }
 
 function openDisappearingModal() {
+    const contact = state.contacts.find(c => c.handle === state.activeTarget);
+    const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
+
     openModal('Disappearing Messages Timer', `
         <div style="display:flex; flex-direction:column; gap:14px;">
-            <p style="color:#636765; font-size:0.88rem;">Set message lifespan timer for messages sent to ${state.activeDisplayName}:</p>
+            <p style="color:#636765; font-size:0.88rem;">Set message lifespan timer for messages sent to ${displayName}:</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="60" ${state.ttl === 60 ? 'checked' : ''}> 60 Seconds</label>
                 <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="300" ${state.ttl === 300 ? 'checked' : ''}> 5 Minutes (300s)</label>
