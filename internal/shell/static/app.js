@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const addDmBtn = document.getElementById('add-dm-btn');
   const addGroupBtn = document.getElementById('add-group-btn');
 
-  let activeChannel = '#Development';
+  let activeChannel = '';
   let activeTTL = 300;
   let isBurnActive = true;
   let currentHostHandle = 'PV-DEVICE';
@@ -25,9 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const changeHandleBtn = document.getElementById('change-handle-btn');
 
   // In-Memory Per-Channel Message Store
-  const channelHistories = {
-    '#Development': []
-  };
+  const channelHistories = {};
 
   async function fetchIdentity() {
     try {
@@ -139,7 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (first) {
             first.click();
           } else {
-            addChannelItem('#Development', true, true);
+            activeChannel = '';
+            renderCurrentChannel();
           }
         }
       };
@@ -229,6 +228,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function renderCurrentChannel() {
     msgContainer.innerHTML = '';
+    if (!activeChannel) {
+      headerChannelTitle.textContent = 'NO ACTIVE CHAT';
+      cmdChannelTag.textContent = '—';
+      recipMeta.textContent = '—';
+      const recipFpRow = document.getElementById('recip-fp-row');
+      if (recipFpRow) recipFpRow.style.display = 'none';
+      msgContainer.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding-top:80px; text-align:center; color:var(--text-muted);">
+          <h4 style="color:var(--cyan-primary); margin-bottom:6px; font-weight:700;">No Active Channel Selected</h4>
+          <p style="font-size:0.84rem;">Click <strong>+ DM</strong> to message a user or <strong>+ Group</strong> to create an encrypted room.</p>
+        </div>
+      `;
+      return;
+    }
+
     const history = channelHistories[activeChannel] || [];
 
     if (history.length === 0) {
@@ -326,8 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initialize Default Group
-  addChannelItem('#Development', true, true);
+  renderCurrentChannel();
   fetchIdentity();
 
   // Add DM Button

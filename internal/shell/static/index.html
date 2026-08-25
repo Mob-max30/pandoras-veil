@@ -21,7 +21,7 @@
         <span class="pv-brand-name">PANDORA'S VEIL</span>
       </div>
       <div class="window-title">
-        <span class="status-indicator-dot"></span> SECURE CHANNEL — <span id="header-channel-title">#Development</span>
+        <span class="status-indicator-dot"></span> SECURE CHANNEL — <span id="header-channel-title">NO ACTIVE CHAT</span>
       </div>
     </header>
 
@@ -58,7 +58,7 @@
               <button id="add-group-btn" class="mini-btn" title="Create new group chat">+ Group</button>
             </div>
             <ul class="channel-list" id="group-list">
-              <li class="channel-item active" data-group="#Development"><span class="hash">#</span>Development <span class="dot online"></span></li>
+              <li class="empty-hint">(No groups yet)</li>
             </ul>
           </div>
         </div>
@@ -140,9 +140,9 @@
         <div class="cyber-box key-box">
           <div class="box-header">SESSION METADATA</div>
           <div class="box-body">
-            <div class="field"><span class="label">Device:</span> <span class="val cyan" id="meta-host">PV-PRANAV</span></div>
-            <div class="field"><span class="label">Channel:</span> <span class="val green" id="recip-meta">#Development</span></div>
-            <div class="field" id="recip-fp-row" style="display:none;"><span class="label">Recipient FP:</span> <span class="val yellow" id="recip-fp-val">7C91-42AE</span></div>
+            <div class="field"><span class="label">Device:</span> <span class="val cyan" id="meta-host">—</span></div>
+            <div class="field"><span class="label">Channel:</span> <span class="val green" id="recip-meta">—</span></div>
+            <div class="field" id="recip-fp-row" style="display:none;"><span class="label">Recipient FP:</span> <span class="val yellow" id="recip-fp-val">—</span></div>
             <div class="field"><span class="label">Engine:</span> <span class="val yellow">filippo.io/age</span></div>
           </div>
         </div>
@@ -152,7 +152,7 @@
 
     <!-- Bottom Command & Shortcut Bar -->
     <footer class="command-bar">
-      <div class="command-header">── [ <span id="cmd-channel-tag">#Development</span> ] ──</div>
+      <div class="command-header">── [ <span id="cmd-channel-tag">—</span> ] ──</div>
       <div class="command-input-row">
         <span class="prompt-prefix">pveil &gt;</span>
         <input type="text" id="cmd-input" placeholder="type secure message or /f to attach file..." autocomplete="off" autofocus>
