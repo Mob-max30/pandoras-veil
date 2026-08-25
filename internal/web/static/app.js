@@ -3,9 +3,9 @@
 // ==========================================================================
 
 const state = {
-    myHandle: 'PV-LOCAL',
-    myFingerprint: '',
-    myPublicKey: '',
+    myHandle: 'PV-UJWAL',
+    myFingerprint: 'BA64-5843',
+    myPublicKey: 'age1q8ulqk4630rwqwavdst4fegn9st2zmrqdczvrx4uec9cmu6ah55swres5x',
     activeTarget: 'PV-PRANAV',
     activeTargetFP: '1E42-2834',
     isGroup: false,
@@ -18,13 +18,46 @@ const state = {
             {
                 sender: 'PV-PRANAV',
                 text: 'Hi! Live end-to-end encrypted session is active on Pandora\'s Veil.',
-                timestamp: '14:30',
+                timestamp: '20:30',
+                isOutgoing: false
+            },
+            {
+                sender: 'PV-PRANAV',
+                text: 'why not fine?',
+                timestamp: '20:32',
                 isOutgoing: false
             }
         ],
-        'Development': [],
-        'PV-ALICE': [],
-        'PV-BOB': []
+        'Development': [
+            {
+                sender: 'PV-ALICE',
+                text: 'Deployment complete for v1.2.5 on Render relay.',
+                timestamp: 'Yesterday',
+                isOutgoing: false
+            },
+            {
+                sender: 'PV-UJWAL',
+                text: 'Confirmed. Zero-knowledge live stream verified.',
+                timestamp: 'Yesterday',
+                isOutgoing: true
+            }
+        ],
+        'PV-ALICE': [
+            {
+                sender: 'PV-ALICE',
+                text: 'Hello Ujwal! Cryptographic key verified on relay.',
+                timestamp: 'Yesterday',
+                isOutgoing: false
+            }
+        ],
+        'PV-BOB': [
+            {
+                sender: 'PV-BOB',
+                text: 'Connected. Device fingerprint 915E-B66D confirmed.',
+                timestamp: '22/08/2026',
+                isOutgoing: false
+            }
+        ]
     }
 };
 
@@ -66,9 +99,9 @@ async function initApp() {
         });
         if (res.ok) {
             const data = await res.json();
-            state.myHandle = data.handle || 'PV-LOCAL';
-            state.myFingerprint = data.fingerprint || 'BA64-5843';
-            state.myPublicKey = data.publicKey || '';
+            state.myHandle = data.handle || state.myHandle;
+            state.myFingerprint = data.fingerprint || state.myFingerprint;
+            state.myPublicKey = data.publicKey || state.myPublicKey;
 
             myHandleEl.textContent = state.myHandle;
             myFingerprintEl.textContent = `FP: ${state.myFingerprint}`;
@@ -128,11 +161,10 @@ function connectSSEStream() {
 
 // 3. Render Active Conversation
 function renderActiveConversation() {
-    // Keep encryption banner and date divider
     const bannerHTML = `
         <div class="system-security-card">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="#ffd279"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"></path></svg>
-            <span>Messages and calls are end-to-end encrypted with native device keys. No one outside of this chat can read them.</span>
+            <span>Messages are end-to-end encrypted with native device keys. No one outside of this chat can read them.</span>
         </div>
         <div class="date-divider"><span>TODAY</span></div>
     `;
@@ -173,7 +205,7 @@ function appendBubble(msg) {
     if (msg.isOutgoing) {
         const checkmarks = document.createElement('span');
         checkmarks.className = 'check-marks';
-        checkmarks.textContent = ' ✓✓';
+        checkmarks.innerHTML = `<svg viewBox="0 0 16 11" width="14" height="11" fill="#53bdeb" class="check-svg" style="display:inline-block; vertical-align:middle; margin-left:4px;"><path d="M11.07 1.48L5.78 6.77l-1.92-1.92-1.06 1.06 2.98 2.98 6.35-6.35-1.06-1.06zm3.86 0L8.58 7.83l.79.79 6.62-6.62-1.06-1.06z"></path></svg>`;
         metaEl.appendChild(checkmarks);
     }
 
@@ -238,7 +270,7 @@ async function handleSendMessage(e) {
             const errData = await res.json().catch(() => ({}));
             appendBubble({
                 sender: 'SYSTEM',
-                text: `⚠️ Message delivery failed: ${errData.error || 'Relay error'}`,
+                text: `[System Notice] Message delivery failed: ${errData.error || 'Relay error'}`,
                 timestamp: formatTime(new Date()),
                 isOutgoing: false
             });
@@ -246,7 +278,7 @@ async function handleSendMessage(e) {
     } catch (err) {
         appendBubble({
             sender: 'SYSTEM',
-            text: `⚠️ Network error: ${err.message}`,
+            text: `[System Notice] Network error: ${err.message}`,
             timestamp: formatTime(new Date()),
             isOutgoing: false
         });
@@ -308,9 +340,9 @@ function toggleProfileDrawer() {
     openModal('My Device Identity', `
         <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem;">
             <div><strong style="color:var(--wa-text-secondary);">Handle:</strong> <span style="font-weight:600;">${state.myHandle}</span></div>
-            <div><strong style="color:var(--wa-text-secondary);">Fingerprint:</strong> <span style="color:var(--wa-text-yellow); font-family:var(--font-mono);">${state.myFingerprint}</span></div>
+            <div><strong style="color:var(--wa-text-secondary);">Fingerprint:</strong> <span style="color:var(--wa-text-yellow); font-family:var(--font-mono); font-weight:600;">${state.myFingerprint}</span></div>
             <div><strong style="color:var(--wa-text-secondary);">Public Key:</strong> <div style="font-size:0.75rem; color:#8696a0; word-break:break-all; font-family:var(--font-mono); margin-top:4px;">${state.myPublicKey}</div></div>
-            <div style="color:#00a884; font-size:0.8rem; margin-top:6px;">🔒 Private key stored locally on disk with 0600 permissions.</div>
+            <div style="color:#00a884; font-size:0.8rem; margin-top:6px;">[Secured] Private key stored locally on disk with 0600 permissions.</div>
         </div>
     `);
 }
@@ -338,7 +370,10 @@ function startNewChatFromModal() {
         state.activeTarget = val;
         state.isGroup = val.includes(',');
         activeContactNameEl.textContent = state.isGroup ? `Group (${val})` : val;
-        activeContactFpEl.textContent = 'Resolving...';
+        activeContactFpEl.textContent = 'Verified Key';
+        if (!state.conversations[val]) {
+            state.conversations[val] = [];
+        }
         closeModal();
         renderActiveConversation();
     }
@@ -381,7 +416,7 @@ async function submitSecretDepositFromModal() {
                 const data = await res.json();
                 appendBubble({
                     sender: state.myHandle,
-                    text: `🔒 [Self-Destructing Deposit Created] ID: ${data.id} (Destroyed upon first read by recipient)`,
+                    text: `[Self-Destructing Deposit Created] ID: ${data.id} (Destroyed upon first read by recipient)`,
                     timestamp: formatTime(new Date()),
                     isOutgoing: true
                 });
@@ -438,6 +473,12 @@ function openModal(title, htmlContent) {
 function closeModal() {
     modalBackdropEl.classList.add('hidden');
     chatInputEl.focus();
+}
+
+function handleBackdropClick(e) {
+    if (e.target === modalBackdropEl) {
+        closeModal();
+    }
 }
 
 function formatTime(d) {
