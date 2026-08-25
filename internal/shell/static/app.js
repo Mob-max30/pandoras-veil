@@ -215,6 +215,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Global Keyboard Shortcuts (Ctrl+Q, Ctrl+N, Tab)
+  document.addEventListener('keydown', e => {
+    // Ctrl+Q or Cmd+Q: Exit App Window
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
+      e.preventDefault();
+      window.close();
+      return;
+    }
+
+    // Ctrl+N: Create New Group
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      addGroupBtn.click();
+      return;
+    }
+
+    // Tab: Cycle / Switch Active Channel
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const items = Array.from(document.querySelectorAll('.channel-item'));
+      if (items.length <= 1) return;
+      const currIdx = items.findIndex(i => i.classList.contains('active'));
+      const nextIdx = (currIdx + 1) % items.length;
+      items[nextIdx].click();
+      return;
+    }
+  });
+
   function escapeHTML(str) {
     return str.replace(/[&<>'"]/g, 
       tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
