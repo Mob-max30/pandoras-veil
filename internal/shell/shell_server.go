@@ -20,6 +20,46 @@ import (
 //go:embed static/*
 var staticFS embed.FS
 
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": false,
+		"error":   msg,
+	})
+}
+
+// resolveKey finds a recipient's public key by trying handle variants (case-insensitive & PV- prefix)
+func resolveKey(apiClient client.RelayClient, handle string) (*client.KeyInfo, error) {
+	trimmed := strings.TrimSpace(handle)
+	if trimmed == "" {
+		return nil, fmt.Errorf("handle required")
+	}
+
+	candidates := []string{
+		trimmed,
+		strings.ToUpper(trimmed),
+		strings.ToLower(trimmed),
+		"PV-" + strings.ToUpper(strings.TrimPrefix(trimmed, "PV-")),
+		strings.TrimPrefix(trimmed, "PV-"),
+		strings.TrimPrefix(strings.ToUpper(trimmed), "PV-"),
+	}
+
+	seen := make(map[string]bool)
+	for _, c := range candidates {
+		if seen[c] {
+			continue
+		}
+		seen[c] = true
+		info, err := apiClient.GetKey(c)
+		if err == nil && info != nil && info.PublicKey != "" {
+			return info, nil
+		}
+	}
+
+	return nil, fmt.Errorf("user '%s' not registered on relay", handle)
+}
+
 // StartShellServer starts the local web server bridging the App Shell UI with local crypto and relay API
 func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 	if apiClient == nil {
@@ -59,7 +99,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 	// 2. Endpoint to initialize/change local handle
 	mux.HandleFunc("/api/init", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -68,7 +108,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 			Handle string `json:"handle"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Handle) == "" {
-			http.Error(w, "Invalid handle", http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Invalid handle")
 			return
 		}
 
@@ -77,7 +117,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		// Generate keypair
 		identity, err := crypto.GenerateIdentity()
 		if err != nil {
-			http.Error(w, "Failed to generate identity", http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, "Failed to generate identity")
 			return
 		}
 
@@ -92,7 +132,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		}
 
 		if err := storage.SaveIdentity("", idFile); err != nil {
-			http.Error(w, "Failed to save identity", http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, "Failed to save identity")
 			return
 		}
 
@@ -112,16 +152,13 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		w.Header().Set("Content-Type", "application/json")
 		handle := strings.TrimSpace(r.URL.Query().Get("handle"))
 		if handle == "" {
-			http.Error(w, `{"error":"Handle required"}`, http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Handle required")
 			return
 		}
 
-		info, err := apiClient.GetKey(handle)
+		info, err := resolveKey(apiClient, handle)
 		if err != nil || info == nil || info.PublicKey == "" {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error": fmt.Sprintf("User '%s' not registered on relay", handle),
-			})
+			writeJSONError(w, http.StatusNotFound, fmt.Sprintf("User '%s' not registered on relay", handle))
 			return
 		}
 
@@ -150,14 +187,14 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 
 	mux.HandleFunc("/api/send", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 
 		var req SendPayload
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, `{"error":"Invalid payload"}`, http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Invalid JSON payload")
 			return
 		}
 
@@ -167,7 +204,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 
 		idFile, err := storage.LoadIdentity("")
 		if err != nil || idFile == nil || idFile.Handle == "" {
-			http.Error(w, `{"error":"Identity not initialized"}`, http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Identity not initialized")
 			return
 		}
 
@@ -176,19 +213,23 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		if req.File != nil && req.File.Filename != "" && req.File.DataB64 != "" {
 			rawBytes, err := base64.StdEncoding.DecodeString(req.File.DataB64)
 			if err != nil {
-				http.Error(w, `{"error":"Invalid file encoding"}`, http.StatusBadRequest)
+				writeJSONError(w, http.StatusBadRequest, "Invalid file encoding")
+				return
+			}
+			if len(rawBytes) > 2*1024*1024 {
+				writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("File exceeds 2MB limit (%d KB)", len(rawBytes)/1024))
 				return
 			}
 			encodedPayload, err := crypto.EncodeFilePayload(req.File.Filename, rawBytes)
 			if err != nil {
-				http.Error(w, `{"error":"Failed to encode file"}`, http.StatusInternalServerError)
+				writeJSONError(w, http.StatusInternalServerError, "Failed to encode file payload")
 				return
 			}
 			plaintextBytes = encodedPayload
 		} else if req.Text != "" {
 			plaintextBytes = []byte(req.Text)
 		} else {
-			http.Error(w, `{"error":"No content to send"}`, http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "No text or file to send")
 			return
 		}
 
@@ -205,7 +246,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 				if trimmed == "" || strings.EqualFold(trimmed, idFile.Handle) {
 					continue
 				}
-				info, err := apiClient.GetKey(trimmed)
+				info, err := resolveKey(apiClient, trimmed)
 				if err == nil && info != nil && info.PublicKey != "" {
 					pubKeys = append(pubKeys, info.PublicKey)
 					recipientHandles = append(recipientHandles, trimmed)
@@ -213,44 +254,44 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 			}
 
 			if len(pubKeys) == 0 {
-				http.Error(w, `{"error":"No registered members found for group"}`, http.StatusBadRequest)
+				writeJSONError(w, http.StatusBadRequest, "No registered members found for group")
 				return
 			}
 
 			ciphertext, err := crypto.EncryptMulti(plaintextBytes, pubKeys...)
 			if err != nil {
-				http.Error(w, fmt.Sprintf(`{"error":"Encryption failed: %v"}`, err), http.StatusInternalServerError)
+				writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Encryption failed: %v", err))
 				return
 			}
 
 			_, err = apiClient.PostGroupChatMessageWithOptions(recipientHandles, idFile.Handle, string(ciphertext), req.TTL, req.Burn)
 			if err != nil {
-				http.Error(w, fmt.Sprintf(`{"error":"Relay upload failed: %v"}`, err), http.StatusInternalServerError)
+				writeJSONError(w, http.StatusServiceUnavailable, fmt.Sprintf("Relay upload failed: %v", err))
 				return
 			}
 		} else {
 			// Direct 1-on-1 message
 			targetHandle := strings.TrimSpace(req.Target)
 			if targetHandle == "" {
-				http.Error(w, `{"error":"Target handle required"}`, http.StatusBadRequest)
+				writeJSONError(w, http.StatusBadRequest, "Target handle required")
 				return
 			}
 
-			info, err := apiClient.GetKey(targetHandle)
+			info, err := resolveKey(apiClient, targetHandle)
 			if err != nil || info == nil || info.PublicKey == "" {
-				http.Error(w, fmt.Sprintf(`{"error":"Recipient %s not found on relay"}`, targetHandle), http.StatusBadRequest)
+				writeJSONError(w, http.StatusNotFound, fmt.Sprintf("Recipient '%s' not registered on relay", targetHandle))
 				return
 			}
 
 			ciphertext, err := crypto.Encrypt(plaintextBytes, info.PublicKey)
 			if err != nil {
-				http.Error(w, fmt.Sprintf(`{"error":"Encryption failed: %v"}`, err), http.StatusInternalServerError)
+				writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Encryption failed: %v", err))
 				return
 			}
 
-			_, err = apiClient.PostChatMessageWithOptions(targetHandle, idFile.Handle, string(ciphertext), req.TTL, req.Burn)
+			_, err = apiClient.PostChatMessageWithOptions(info.Handle, idFile.Handle, string(ciphertext), req.TTL, req.Burn)
 			if err != nil {
-				http.Error(w, fmt.Sprintf(`{"error":"Relay upload failed: %v"}`, err), http.StatusInternalServerError)
+				writeJSONError(w, http.StatusServiceUnavailable, fmt.Sprintf("Relay upload failed: %v", err))
 				return
 			}
 		}

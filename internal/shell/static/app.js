@@ -387,7 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          const data = await res.json();
+          let data = {};
+          try {
+            data = await res.json();
+          } catch(e) {
+            data = { success: false, error: 'Server response error' };
+          }
+
           if (res.ok && data.success) {
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const msgObj = {
@@ -405,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
             channelHistories[activeChannel].push(msgObj);
             renderCurrentChannel();
           } else {
-            alert('Failed to send file: ' + (data.error || 'Relay error'));
+            alert(data.error || 'Failed to send file');
           }
         } catch (err) {
           alert('Network error uploading file: ' + err.message);
@@ -442,7 +448,13 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
+        let data = {};
+        try {
+          data = await res.json();
+        } catch(e) {
+          data = { success: false, error: 'Server response error' };
+        }
+
         if (res.ok && data.success) {
           const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const msgObj = {
@@ -459,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
           renderCurrentChannel();
           cmdInput.value = '';
         } else {
-          alert('Failed to send message: ' + (data.error || 'Relay error'));
+          alert(data.error || 'Failed to send message');
         }
       } catch (err) {
         alert('Network error sending message: ' + err.message);
