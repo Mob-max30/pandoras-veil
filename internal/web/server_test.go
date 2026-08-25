@@ -54,7 +54,15 @@ func (m *mockRelayClient) PostChatMessage(recipient, sender, ciphertext string) 
 	return "msg_123", nil
 }
 
+func (m *mockRelayClient) PostChatMessageWithOptions(recipient, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
+	return "msg_123", nil
+}
+
 func (m *mockRelayClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
+	return []string{"msg_grp_1"}, nil
+}
+
+func (m *mockRelayClient) PostGroupChatMessageWithOptions(recipients []string, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) ([]string, error) {
 	return []string{"msg_grp_1"}, nil
 }
 

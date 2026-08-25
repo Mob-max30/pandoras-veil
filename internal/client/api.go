@@ -303,7 +303,9 @@ type RelayClient interface {
 	DeleteKey(handle string) error
 	PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
 	PostChatMessage(recipient, sender, ciphertext string) (string, error)
+	PostChatMessageWithOptions(recipient, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
 	PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error)
+	PostGroupChatMessageWithOptions(recipients []string, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) ([]string, error)
 	GetPaste(id string) (string, error)
 	FetchInbox(recipient, sender string) ([]InboxMessage, error)
 	ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error
@@ -450,17 +452,25 @@ func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 }
 
 func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
+	return c.PostChatMessageWithOptions(recipient, sender, ciphertext, 86400, false)
+}
+
+func (c *HTTPClient) PostChatMessageWithOptions(recipient, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
 	b64Ciphertext := ciphertext
 	if _, err := base64.StdEncoding.DecodeString(ciphertext); err != nil {
 		b64Ciphertext = base64.StdEncoding.EncodeToString([]byte(ciphertext))
+	}
+
+	if ttlSeconds <= 0 {
+		ttlSeconds = 86400
 	}
 
 	reqBody := PasteCreateRequest{
 		Ciphertext:       b64Ciphertext,
 		Recipient:        recipient,
 		Sender:           sender,
-		TTLSeconds:       86400,
-		BurnAfterReading: false,
+		TTLSeconds:       ttlSeconds,
+		BurnAfterReading: burnAfterReading,
 	}
 	data, err := json.Marshal(reqBody)
 	if err != nil {
@@ -486,13 +496,17 @@ func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (stri
 }
 
 func (c *HTTPClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
+	return c.PostGroupChatMessageWithOptions(recipients, sender, ciphertext, 86400, false)
+}
+
+func (c *HTTPClient) PostGroupChatMessageWithOptions(recipients []string, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) ([]string, error) {
 	var ids []string
 	for _, rc := range recipients {
 		trimmed := strings.TrimSpace(rc)
 		if trimmed == "" {
 			continue
 		}
-		id, err := c.PostChatMessage(trimmed, sender, ciphertext)
+		id, err := c.PostChatMessageWithOptions(trimmed, sender, ciphertext, ttlSeconds, burnAfterReading)
 		if err != nil {
 			return ids, fmt.Errorf("failed to send message to group member %s: %w", trimmed, err)
 		}
@@ -709,21 +723,29 @@ func (m *MockClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 }
 
 func (m *MockClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
+	return m.PostChatMessageWithOptions(recipient, sender, ciphertext, 86400, false)
+}
+
+func (m *MockClient) PostChatMessageWithOptions(recipient, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
 	id := fmt.Sprintf("pv_%d", time.Now().UnixNano())
 	m.Pastes[id] = PasteCreateRequest{
 		Ciphertext:       ciphertext,
 		Recipient:        recipient,
 		Sender:           sender,
-		TTLSeconds:       86400,
-		BurnAfterReading: false,
+		TTLSeconds:       ttlSeconds,
+		BurnAfterReading: burnAfterReading,
 	}
 	return id, nil
 }
 
 func (m *MockClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
+	return m.PostGroupChatMessageWithOptions(recipients, sender, ciphertext, 86400, false)
+}
+
+func (m *MockClient) PostGroupChatMessageWithOptions(recipients []string, sender, ciphertext string, ttlSeconds int, burnAfterReading bool) ([]string, error) {
 	var ids []string
 	for _, rc := range recipients {
-		id, err := m.PostChatMessage(rc, sender, ciphertext)
+		id, err := m.PostChatMessageWithOptions(rc, sender, ciphertext, ttlSeconds, burnAfterReading)
 		if err != nil {
 			return ids, err
 		}

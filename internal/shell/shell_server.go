@@ -138,6 +138,8 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		GroupMembers []string  `json:"groupMembers"`
 		Text         string    `json:"text"`
 		File         *FileData `json:"file,omitempty"`
+		TTL          int       `json:"ttl"`
+		Burn         bool      `json:"burn"`
 	}
 
 	mux.HandleFunc("/api/send", func(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +153,10 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, `{"error":"Invalid payload"}`, http.StatusBadRequest)
 			return
+		}
+
+		if req.TTL <= 0 {
+			req.TTL = 300
 		}
 
 		idFile, err := storage.LoadIdentity("")
@@ -211,7 +217,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 				return
 			}
 
-			_, err = apiClient.PostGroupChatMessage(recipientHandles, idFile.Handle, string(ciphertext))
+			_, err = apiClient.PostGroupChatMessageWithOptions(recipientHandles, idFile.Handle, string(ciphertext), req.TTL, req.Burn)
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"Relay upload failed: %v"}`, err), http.StatusInternalServerError)
 				return
@@ -236,7 +242,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 				return
 			}
 
-			_, err = apiClient.PostChatMessage(targetHandle, idFile.Handle, string(ciphertext))
+			_, err = apiClient.PostChatMessageWithOptions(targetHandle, idFile.Handle, string(ciphertext), req.TTL, req.Burn)
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"Relay upload failed: %v"}`, err), http.StatusInternalServerError)
 				return
