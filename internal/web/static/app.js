@@ -13,7 +13,8 @@ function getInitials(handle) {
 }
 
 function formatTTL(seconds) {
-    if (!seconds || seconds <= 0) return 'Main';
+    if (seconds === 60) return '60s';
+    if (!seconds || seconds <= 0) return '5m';
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
@@ -273,6 +274,8 @@ function renderCorrespondenceSidebar() {
 
     // Update active header details
     const activeContact = state.contacts.find(c => c.handle === state.activeTarget);
+    const mainTTL = getMainTTL(state.activeTarget);
+
     if (activeContact) {
         const initials = getInitials(activeContact.name || activeContact.handle);
         activeHeaderAvatarEl.textContent = initials;
@@ -284,22 +287,16 @@ function renderCorrespondenceSidebar() {
         state.groupMembers = activeContact.members || [];
         state.activeTargetFP = activeContact.fp || '';
         state.activeTargetPK = activeContact.publicKey || '';
-
-        // Sync main TTL label
-        const mainTTL = getMainTTL(state.activeTarget);
-        if (topMainTtlLabelEl) {
-            topMainTtlLabelEl.textContent = `${formatTTL(mainTTL)} Lifespan`;
-        }
-        updateMsgTTLBadge();
     } else {
         activeHeaderAvatarEl.textContent = '—';
         activeContactTitleEl.textContent = 'No Active Chat';
         activeStatusTextEl.textContent = state.serverConnected ? 'Connected to Relay' : 'Connecting...';
-        if (topMainTtlLabelEl) {
-            topMainTtlLabelEl.textContent = '5m Lifespan';
-        }
-        updateMsgTTLBadge();
     }
+
+    if (topMainTtlLabelEl) {
+        topMainTtlLabelEl.textContent = `${formatTTL(mainTTL)} Lifespan`;
+    }
+    updateMsgTTLBadge();
 }
 
 function getMainTTL(handle) {
