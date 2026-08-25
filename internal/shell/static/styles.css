@@ -223,11 +223,11 @@ body {
   color: var(--green-bright);
 }
 
-.guide-box {
+.crypto-box {
   border: 1px solid var(--border-cyan);
 }
 
-.guide-box .box-header {
+.crypto-box .box-header {
   color: var(--cyan-primary);
   border-bottom: 1px solid var(--cyan-dim);
 }
