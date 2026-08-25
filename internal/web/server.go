@@ -509,14 +509,20 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			groupRoom := ""
 
 			var groupMsg struct {
-				Group   string   `json:"__pv_group"`
-				Sender  string   `json:"sender"`
-				Text    string   `json:"text"`
-				Members []string `json:"members"`
+				Group       string   `json:"__pv_group"`
+				GroupName   string   `json:"group_name"`
+				IsGroup     bool     `json:"is_group"`
+				Sender      string   `json:"sender"`
+				Text        string   `json:"text"`
+				Members     []string `json:"members"`
+				GroupMember []string `json:"group_members"`
 			}
-			if err := json.Unmarshal(plaintext, &groupMsg); err == nil && groupMsg.Group != "" {
+			if err := json.Unmarshal(plaintext, &groupMsg); err == nil && (groupMsg.Group != "" || groupMsg.GroupName != "" || groupMsg.IsGroup) {
 				isGroup = true
 				groupRoom = groupMsg.Group
+				if groupRoom == "" {
+					groupRoom = groupMsg.GroupName
+				}
 				if groupMsg.Sender != "" {
 					sender = groupMsg.Sender
 				}

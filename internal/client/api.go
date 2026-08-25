@@ -465,34 +465,58 @@ func (c *HTTPClient) PostChatMessageWithOptions(recipient, sender, ciphertext st
 		ttlSeconds = 86400
 	}
 
-	reqBody := PasteCreateRequest{
-		Ciphertext:       b64Ciphertext,
-		Recipient:        recipient,
-		Sender:           sender,
-		TTLSeconds:       ttlSeconds,
-		BurnAfterReading: burnAfterReading,
-	}
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode request: %w", err)
+	trimmed := strings.TrimSpace(recipient)
+	targets := []string{
+		trimmed,
+		strings.ToUpper(trimmed),
+		strings.ToLower(trimmed),
+		"PV-" + strings.ToUpper(strings.TrimPrefix(trimmed, "PV-")),
+		strings.TrimPrefix(strings.ToUpper(trimmed), "PV-"),
 	}
 
-	resp, err := c.HTTPClient.Post(c.BaseURL+"/paste", "application/json", bytes.NewReader(data))
-	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
-	}
-	defer resp.Body.Close()
+	seen := make(map[string]bool)
+	var firstID string
+	var lastErr error
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("relay returned status %d: %s", resp.StatusCode, string(body))
+	for _, target := range targets {
+		if target == "" || seen[target] {
+			continue
+		}
+		seen[target] = true
+
+		reqBody := PasteCreateRequest{
+			Ciphertext:       b64Ciphertext,
+			Recipient:        target,
+			Sender:           sender,
+			TTLSeconds:       ttlSeconds,
+			BurnAfterReading: burnAfterReading,
+		}
+		data, err := json.Marshal(reqBody)
+		if err != nil {
+			continue
+		}
+
+		resp, err := c.HTTPClient.Post(c.BaseURL+"/paste", "application/json", bytes.NewReader(data))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			var createResp PasteCreateResponse
+			if err := json.NewDecoder(resp.Body).Decode(&createResp); err == nil && firstID == "" {
+				firstID = createResp.ID
+			}
+		}
+		resp.Body.Close()
 	}
 
-	var createResp PasteCreateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
-		return "", fmt.Errorf("failed to decode response: %w", err)
+	if firstID != "" {
+		return firstID, nil
 	}
-	return createResp.ID, nil
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("failed to upload message envelope to relay")
 }
 
 func (c *HTTPClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
