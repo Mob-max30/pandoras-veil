@@ -46,6 +46,8 @@ type TUIState struct {
 	relayURL    string
 	messages    []ChatMessage
 	inputBuffer string
+	lastWidth   int
+	lastHeight  int
 	out         io.Writer
 }
 
@@ -60,6 +62,32 @@ func (s *TUIState) SetInput(text string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.inputBuffer = text
+	s.render()
+}
+
+func (s *TUIState) ToggleBurn() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if strings.EqualFold(s.burnSetting, "ON") {
+		s.burnSetting = "OFF"
+	} else {
+		s.burnSetting = "ON"
+	}
+	s.render()
+	return s.burnSetting
+}
+
+func (s *TUIState) SetTTL(val string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ttlSetting = val
+	s.render()
+}
+
+func (s *TUIState) ClearMessages() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = make([]ChatMessage, 0)
 	s.render()
 }
 
@@ -118,7 +146,6 @@ func (s *TUIState) render() {
 		}
 	}
 
-	// Clamp to safe screen boundaries to prevent line-wrapping
 	if width < 70 {
 		width = 70
 	}
@@ -126,8 +153,18 @@ func (s *TUIState) render() {
 		height = 16
 	}
 
-	// Column Widths strictly summing to width-2:
-	// leftW + 1 + centerW + 1 + rightW == width-2
+	var b strings.Builder
+	// If window size changed, clear entire screen buffer
+	if width != s.lastWidth || height != s.lastHeight {
+		b.WriteString("\033[2J")
+		s.lastWidth = width
+		s.lastHeight = height
+	}
+
+	// Move cursor to home and hide cursor during screen refresh
+	b.WriteString("\033[H\033[?25l")
+
+	// Column Widths strictly summing to width-2
 	leftW := width * 22 / 100
 	if leftW < 20 {
 		leftW = 20
@@ -142,15 +179,10 @@ func (s *TUIState) render() {
 	}
 
 	// Height budget strictly fitting inside height - 1 to prevent scrolling
-	// Top Header (1) + Main Columns (mainH) + Input Top (1) + Input Body (1) + Input Bot (1) + Footer (1) = mainH + 5
 	mainH := height - 6
 	if mainH < 8 {
 		mainH = 8
 	}
-
-	var b strings.Builder
-	// Move cursor to home and hide cursor during screen refresh
-	b.WriteString("\033[H\033[?25l")
 
 	// -------------------------------------------------------------
 	// 1. TOP TITLE BAR (1 Line)
@@ -263,7 +295,6 @@ func (s *TUIState) render() {
 	centerHeader := fmt.Sprintf("╭─ CENTER MAIN PANE %s╮", strings.Repeat("─", maxInt(0, centerW-21)))
 	centerLines[0] = fmt.Sprintf("%s%s%s", ThemeGreen, centerHeader, ColorReset)
 
-	// Render speech bubble messages
 	chatRowsAvailable := mainH - 2
 	var renderedBubbleLines []string
 
@@ -317,7 +348,6 @@ func (s *TUIState) render() {
 		}
 	}
 
-	// Slice visible bubble lines
 	visibleBubbles := renderedBubbleLines
 	if len(visibleBubbles) > chatRowsAvailable {
 		visibleBubbles = visibleBubbles[len(visibleBubbles)-chatRowsAvailable:]
@@ -331,7 +361,6 @@ func (s *TUIState) render() {
 		}
 	}
 
-	// Fill empty center lines
 	for r := 1; r < mainH-1; r++ {
 		if centerLines[r] == "" {
 			centerLines[r] = fmt.Sprintf("%s│%s%s%s│%s", ThemeGreen, ColorReset, strings.Repeat(" ", maxInt(0, centerW-2)), ThemeGreen, ColorReset)
@@ -600,6 +629,29 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		})
 	}
 
+	// Background Auto-Resize Watcher (dynamically re-renders on window resize / maximize)
+	go func() {
+		ticker := time.NewTicker(150 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-ticker.C:
+				w, h, err := term.GetSize(int(os.Stdout.Fd()))
+				if err == nil && w > 0 && h > 0 {
+					state.mu.Lock()
+					if w != state.lastWidth || h != state.lastHeight {
+						state.mu.Unlock()
+						state.render()
+					} else {
+						state.mu.Unlock()
+					}
+				}
+			}
+		}
+	}()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -644,7 +696,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		os.Exit(0)
 	}()
 
-	// 7. Foreground Input Handling Loop
+	// 7. Foreground Input Handling Loop with interactive commands
 	scanner := bufio.NewScanner(ui.In)
 	for scanner.Scan() {
 		text := strings.TrimSpace(scanner.Text())
@@ -653,9 +705,60 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			continue
 		}
 
-		if text == "/quit" || text == "/exit" {
+		// Handle interactive slash commands / footer buttons
+		if text == "/quit" || text == "/exit" || text == ":q" {
 			safeClose()
 			return 0
+		}
+
+		if text == "/help" {
+			state.AddMessage(ChatMessage{
+				Timestamp:  time.Now().Format("15:04"),
+				Sender:     "SYSTEM",
+				Text:       "Commands: /ttl <60s|300s|1h|24h> | /burn (toggle) | /clear | /quit",
+				IsOutgoing: false,
+			})
+			state.SetInput("")
+			continue
+		}
+
+		if text == "/burn" {
+			newState := state.ToggleBurn()
+			state.AddMessage(ChatMessage{
+				Timestamp:  time.Now().Format("15:04"),
+				Sender:     "POLICY",
+				Text:       fmt.Sprintf("Burn-After-Reading updated: *%s*", newState),
+				IsOutgoing: false,
+			})
+			state.SetInput("")
+			continue
+		}
+
+		if strings.HasPrefix(text, "/ttl") {
+			parts := strings.Fields(text)
+			if len(parts) > 1 {
+				state.SetTTL(parts[1])
+				state.AddMessage(ChatMessage{
+					Timestamp:  time.Now().Format("15:04"),
+					Sender:     "POLICY",
+					Text:       fmt.Sprintf("TTL expiration updated: *%s*", parts[1]),
+					IsOutgoing: false,
+				})
+			}
+			state.SetInput("")
+			continue
+		}
+
+		if text == "/clear" {
+			state.ClearMessages()
+			state.SetInput("")
+			continue
+		}
+
+		// Strip optional /msg prefix
+		msgContent := text
+		if strings.HasPrefix(text, "/msg ") {
+			msgContent = strings.TrimPrefix(text, "/msg ")
 		}
 
 		// Encrypt message locally using age recipient-based encryption
@@ -665,9 +768,9 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			for i, m := range members {
 				pubKeys[i] = m.publicKey
 			}
-			ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+			ciphertext, err = crypto.EncryptMulti([]byte(msgContent), pubKeys...)
 		} else {
-			ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+			ciphertext, err = crypto.Encrypt([]byte(msgContent), members[0].publicKey)
 		}
 		if err != nil {
 			state.AddMessage(ChatMessage{
@@ -701,7 +804,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		state.AddMessage(ChatMessage{
 			Timestamp:  timestamp,
 			Sender:     localIdFile.Handle,
-			Text:       text,
+			Text:       msgContent,
 			IsOutgoing: true,
 		})
 		state.SetInput("")
