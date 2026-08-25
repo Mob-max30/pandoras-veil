@@ -353,7 +353,14 @@ function renderActiveConversation() {
     chatMessagesContainerEl.innerHTML = separatorHTML;
 
     const msgs = state.conversations[state.activeTarget] || [];
-    msgs.forEach(msg => appendLinenBubble(msg));
+    if (msgs.length === 0) {
+        const notice = document.createElement('div');
+        notice.style.cssText = 'text-align:center; color:#727774; font-size:0.84rem; margin:32px auto; padding:16px 20px; background:rgba(255,255,255,0.7); border-radius:12px; max-width:85%; border:1px dashed #dfd8cc; line-height:1.5;';
+        notice.innerHTML = `🔒 <strong>Temporary Encrypted Session Ready</strong> with <span style="font-family:var(--font-mono); color:var(--linen-card-green); font-weight:600;">${state.activeTarget}</span><br><span style="font-size:0.78rem; color:#888d8a;">Messages sent are encrypted with the recipient's public key. If the peer is offline, messages remain safely stored on the relay with TTL and are delivered immediately when they connect.</span>`;
+        chatMessagesContainerEl.appendChild(notice);
+    } else {
+        msgs.forEach(msg => appendLinenBubble(msg));
+    }
 
     scrollChatToBottom();
 }
@@ -510,7 +517,10 @@ function startNewChatFromModal() {
     const input = document.getElementById('new-chat-handle-input');
     if (input && input.value.trim()) {
         const val = input.value.trim();
-        touchContact(val, 'Connected', formatTime(new Date()), val);
+        if (!state.conversations[val]) {
+            state.conversations[val] = [];
+        }
+        touchContact(val, 'Channel Ready', formatTime(new Date()), val);
         selectContact(val);
         closeModal();
     }
