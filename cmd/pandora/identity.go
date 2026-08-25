@@ -4,15 +4,17 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/Mob-max30/pandoras-veil/internal/client"
 	"github.com/Mob-max30/pandoras-veil/internal/storage"
 )
 
 // runIdentity handles 'pandora identity' command
-func runIdentity(args []string, ui *UI) int {
+func runIdentity(args []string, ui *UI, apiClient client.Client) int {
 	fs := flag.NewFlagSet("identity", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
 	pathFlag := fs.String("config", "", "Custom path for identity file (defaults to ~/.pandora/identity.json)")
+	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
 
 	fs.Usage = func() {
 		fmt.Fprintf(ui.Out, "Usage: pandora identity [options]\n\n")
@@ -22,6 +24,17 @@ func runIdentity(args []string, ui *UI) int {
 	}
 
 	if err := fs.Parse(normalizeArgs(args)); err != nil {
+		return 1
+	}
+
+	// If using real HTTP client, update base URL from flag
+	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
+		httpCl.BaseURL = *relayFlag
+	}
+
+	// Strict server check
+	if err := apiClient.Health(); err != nil {
+		ui.Error("SERVER OFFLINE: Cannot reach relay server at %s. Exiting.", *relayFlag)
 		return 1
 	}
 

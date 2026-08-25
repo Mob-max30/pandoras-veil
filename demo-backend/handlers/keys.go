@@ -63,6 +63,13 @@ func (h *KeyHandler) HandleKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Method == http.MethodGet {
+		keys := h.Store.ListKeys()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(keys)
+		return
+	}
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 

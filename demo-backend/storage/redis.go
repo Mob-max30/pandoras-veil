@@ -79,6 +79,17 @@ func (s *MemoryStore) GetKey(handle string) (*StoredKey, error) {
 	return &key, nil
 }
 
+func (s *MemoryStore) ListKeys() []StoredKey {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	list := make([]StoredKey, 0, len(s.keys))
+	for _, k := range s.keys {
+		list = append(list, k)
+	}
+	return list
+}
+
 func (s *MemoryStore) SavePaste(id, ciphertext string, ttlSeconds int, burnAfterReading bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -48,6 +48,17 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 		return 1
 	}
 
+	// If using real HTTP client, update base URL from flag
+	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
+		httpCl.BaseURL = *relayFlag
+	}
+
+	// Strict server check: fail immediately if server is offline
+	if err := apiClient.Health(); err != nil {
+		ui.Error("SERVER OFFLINE: Cannot connect to relay server at %s. Exiting.", *relayFlag)
+		return 1
+	}
+
 	ui.Info("Generating new X25519 device keypair...")
 	deviceIdentity, err := crypto.GenerateIdentity()
 	if err != nil {
@@ -55,30 +66,16 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 		return 1
 	}
 
-	// If using real HTTP client, update base URL from flag
-	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
-		httpCl.BaseURL = *relayFlag
-	}
-
 	ui.Info("Registering public key with relay (%s)...", *relayFlag)
 	regInfo, err := apiClient.RegisterKey(*handleFlag, deviceIdentity.PublicKey)
 	if err != nil {
-		ui.Warn("Relay registration notice: %v", err)
-		ui.Info("Saving identity locally anyway for offline/local use...")
-		// Generate a local handle fallback if relay is offline
-		if *handleFlag != "" {
-			regInfo = &client.KeyInfo{
-				Handle:      *handleFlag,
-				PublicKey:   deviceIdentity.PublicKey,
-				Fingerprint: deviceIdentity.Fingerprint,
-			}
-		} else {
-			regInfo = &client.KeyInfo{
-				Handle:      fmt.Sprintf("PV-%s", deviceIdentity.Fingerprint),
-				PublicKey:   deviceIdentity.PublicKey,
-				Fingerprint: deviceIdentity.Fingerprint,
-			}
+		if err == client.ErrConflict {
+			ui.Error("Handle '%s' is already registered on the relay! Please choose a different handle name or omit --handle for an automatic unique handle.", *handleFlag)
+			return 1
 		}
+		ui.Error("Relay registration failed: %v", err)
+		ui.Info("The relay server (%s) must be running to register your device handle.", *relayFlag)
+		return 1
 	}
 
 	// Save identity locally with 0600 permissions

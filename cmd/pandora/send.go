@@ -49,6 +49,12 @@ func runSend(args []string, ui *UI, apiClient client.Client) int {
 		httpCl.BaseURL = *relayFlag
 	}
 
+	// Check if server is reachable before doing anything
+	if err := apiClient.Health(); err != nil {
+		ui.Error("SERVER OFFLINE: Cannot reach relay server at %s (%v)", *relayFlag, err)
+		return 1
+	}
+
 	if strings.HasPrefix(*toFlag, "age1") {
 		recipientPubKey = *toFlag
 		expectedFingerprint = crypto.ComputeFingerprint(recipientPubKey)

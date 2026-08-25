@@ -79,6 +79,11 @@ func runRead(args []string, ui *UI, apiClient client.Client) int {
 		httpCl.BaseURL = *relayFlag
 	}
 
+	if err := apiClient.Health(); err != nil {
+		ui.Error("SERVER OFFLINE: Cannot reach relay server at %s (%v)", *relayFlag, err)
+		return 1
+	}
+
 	ui.Info("Fetching encrypted secret '%s' from relay...", pasteID)
 	ciphertext, err := apiClient.GetPaste(pasteID)
 	if err != nil {

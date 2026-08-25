@@ -46,7 +46,7 @@ func TestCLI_InitAndIdentity(t *testing.T) {
 	// 2. Run 'identity'
 	outBuf.Reset()
 	ui = NewUI(strings.NewReader(""), &outBuf)
-	exitCode = runIdentity([]string{"--config", configPath}, ui)
+	exitCode = runIdentity([]string{"--config", configPath}, ui, mockClient)
 	if exitCode != 0 {
 		t.Fatalf("runIdentity failed with code %d", exitCode)
 	}

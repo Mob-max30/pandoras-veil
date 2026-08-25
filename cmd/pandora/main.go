@@ -45,7 +45,7 @@ func main() {
 	case "init":
 		exitCode = runInit(args, ui, apiClient)
 	case "identity", "id":
-		exitCode = runIdentity(args, ui)
+		exitCode = runIdentity(args, ui, apiClient)
 	case "send":
 		exitCode = runSend(args, ui, apiClient)
 	case "read":
