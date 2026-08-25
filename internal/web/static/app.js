@@ -710,66 +710,39 @@ function removeCorrespondence(handle) {
     renderActiveConversation();
 }
 
-// Add New Chat / Group Modal
-function openNewChatModal(tab = 'peer') {
-    openModal(tab === 'peer' ? 'New Chat' : 'New Group', `
-        <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid #202932; padding-bottom:10px;">
-            <button type="button" id="tab-btn-peer" style="background:${tab === 'peer' ? 'var(--pv-emerald)' : 'transparent'}; color:${tab === 'peer' ? '#fff' : 'var(--pv-text-muted)'}; border:none; padding:6px 14px; border-radius:8px; font-weight:600; cursor:pointer;" onclick="switchAddTab('peer')">Direct Chat</button>
-            <button type="button" id="tab-btn-group" style="background:${tab === 'group' ? 'var(--pv-emerald)' : 'transparent'}; color:${tab === 'group' ? '#fff' : 'var(--pv-text-muted)'}; border:none; padding:6px 14px; border-radius:8px; font-weight:600; cursor:pointer;" onclick="switchAddTab('group')">Encrypted Group</button>
-        </div>
-
-        <div id="add-peer-tab-content" class="${tab === 'peer' ? '' : 'hidden'}">
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <input type="text" id="new-peer-handle-input" placeholder="Peer handle (e.g. marcus or alex)" style="width:100%; height:44px; background:#141a20; border:1px solid #202932; color:#f8fafc; border-radius:10px; padding:0 14px; outline:none;" autofocus>
-                <div id="new-peer-error" class="pv-error-box hidden"></div>
-                <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                    <button type="button" class="pv-init-btn" style="height:40px; padding:0 18px;" id="add-peer-submit-btn" onclick="startNewPeerFromModal()">Add Chat</button>
-                </div>
+// Add New Chat Modal
+function openNewChatModal() {
+    openModal('New Chat', `
+        <form onsubmit="event.preventDefault(); startNewPeerFromModal();" style="display:flex; flex-direction:column; gap:14px;">
+            <input type="text" id="new-peer-handle-input" placeholder="Peer handle (e.g. marcus or alex)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
+            <div id="new-peer-error" class="pv-error-box hidden"></div>
+            <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+                <button type="submit" class="pv-init-btn" style="height:42px; padding:0 22px;" id="add-peer-submit-btn">Start Chat</button>
             </div>
-        </div>
-
-        <div id="add-group-tab-content" class="${tab === 'group' ? '' : 'hidden'}">
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <input type="text" id="new-group-name-input" placeholder="Group Name (e.g. core-devs)" style="width:100%; height:44px; background:#141a20; border:1px solid #202932; color:#f8fafc; border-radius:10px; padding:0 14px; outline:none;">
-                <input type="text" id="new-group-members-input" placeholder="Members (e.g. marcus, alex)" style="width:100%; height:44px; background:#141a20; border:1px solid #202932; color:#f8fafc; border-radius:10px; padding:0 14px; outline:none;">
-                <div id="new-group-error" class="pv-error-box hidden"></div>
-                <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                    <button type="button" class="pv-init-btn" style="height:40px; padding:0 18px;" id="add-group-submit-btn" onclick="createGroupFromModal()">Create Group</button>
-                </div>
-            </div>
-        </div>
+        </form>
     `);
     setTimeout(() => {
-        const inp = document.getElementById(tab === 'peer' ? 'new-peer-handle-input' : 'new-group-name-input');
+        const inp = document.getElementById('new-peer-handle-input');
         if (inp) inp.focus();
     }, 100);
 }
 
-function switchAddTab(tab) {
-    const peerTab = document.getElementById('add-peer-tab-content');
-    const groupTab = document.getElementById('add-group-tab-content');
-    const peerBtn = document.getElementById('tab-btn-peer');
-    const groupBtn = document.getElementById('tab-btn-group');
-
-    if (tab === 'peer') {
-        peerTab.classList.remove('hidden');
-        groupTab.classList.add('hidden');
-        peerBtn.style.background = 'var(--pv-emerald)';
-        peerBtn.style.color = '#fff';
-        groupBtn.style.background = 'transparent';
-        groupBtn.style.color = 'var(--pv-text-muted)';
-        const inp = document.getElementById('new-peer-handle-input');
-        if (inp) inp.focus();
-    } else {
-        peerTab.classList.add('hidden');
-        groupTab.classList.remove('hidden');
-        peerBtn.style.background = 'transparent';
-        peerBtn.style.color = 'var(--pv-text-muted)';
-        groupBtn.style.background = 'var(--pv-emerald)';
-        groupBtn.style.color = '#fff';
+// Add New Group Modal
+function openNewGroupModal() {
+    openModal('New Group', `
+        <form onsubmit="event.preventDefault(); createGroupFromModal();" style="display:flex; flex-direction:column; gap:14px;">
+            <input type="text" id="new-group-name-input" placeholder="Group Name (e.g. core-devs)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
+            <input type="text" id="new-group-members-input" placeholder="Members (e.g. marcus, alex)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;">
+            <div id="new-group-error" class="pv-error-box hidden"></div>
+            <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+                <button type="submit" class="pv-init-btn" style="height:42px; padding:0 22px;" id="add-group-submit-btn">Create Group</button>
+            </div>
+        </form>
+    `);
+    setTimeout(() => {
         const inp = document.getElementById('new-group-name-input');
         if (inp) inp.focus();
-    }
+    }, 100);
 }
 
 async function startNewPeerFromModal() {
@@ -805,13 +778,13 @@ async function startNewPeerFromModal() {
             errEl.textContent = data.error || `User '${handle}' does not exist on the relay server. Make sure they have initialized first.`;
             errEl.classList.remove('hidden');
             btn.disabled = false;
-            btn.textContent = 'Add Chat';
+            btn.textContent = 'Start Chat';
         }
     } catch (err) {
         errEl.textContent = `Server connection error: ${err.message}`;
         errEl.classList.remove('hidden');
         btn.disabled = false;
-        btn.textContent = 'Add Chat';
+        btn.textContent = 'Start Chat';
     }
 }
 
@@ -881,34 +854,40 @@ async function createGroupFromModal() {
 
 // Disappearing Messages Modal
 function openDisappearingModal() {
-    if (!state.activeTarget) {
-        openNewChatModal('peer');
-        return;
-    }
     const currentTTL = getMainTTL(state.activeTarget);
 
-    openModal('Disappearing Messages (Main Lifespan)', `
-        <div style="display:flex; flex-direction:column; gap:14px; font-size:0.88rem;">
-            <p style="color:#94a3b8;">Set main conversation lifespan timer for <strong>${state.activeTarget}</strong>. Messages without custom timers will disappear after this duration:</p>
+    openModal('Disappearing Messages', `
+        <form onsubmit="event.preventDefault(); applyConversationTTLFromModal();" style="display:flex; flex-direction:column; gap:16px; font-size:0.9rem;">
+            <p style="color:#94a3b8; font-size:0.86rem;">Select lifespan after which messages will automatically burn:</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="30" ${currentTTL === 30 ? 'checked' : ''}> 30 Seconds</label>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="60" ${currentTTL === 60 ? 'checked' : ''}> 1 Minute</label>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="300" ${currentTTL === 300 ? 'checked' : ''}> 5 Minutes (Default)</label>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="3600" ${currentTTL === 3600 ? 'checked' : ''}> 1 Hour</label>
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="86400" ${currentTTL === 86400 ? 'checked' : ''}> 24 Hours</label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px; color:#f8fafc;"><input type="radio" name="ttl-opt" value="60" ${currentTTL === 60 ? 'checked' : ''}> 60s (1 Minute)</label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px; color:#f8fafc;"><input type="radio" name="ttl-opt" value="300" ${currentTTL === 300 ? 'checked' : ''}> 5m (5 Minutes)</label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px; color:#f8fafc;"><input type="radio" name="ttl-opt" value="3600" ${currentTTL === 3600 ? 'checked' : ''}> 1h (1 Hour)</label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px; color:#f8fafc;"><input type="radio" name="ttl-opt" value="86400" ${currentTTL === 86400 ? 'checked' : ''}> 24h (24 Hours)</label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px; color:#34d399; margin-top:4px;"><input type="checkbox" id="burn-after-read-chk" ${state.burnAfterReading ? 'checked' : ''}> Burn after reading (One-time view)</label>
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                <button type="button" class="pv-init-btn" style="height:38px; padding:0 18px;" onclick="applyConversationTTLFromModal()">Save</button>
+                <button type="submit" class="pv-init-btn" style="height:40px; padding:0 22px;">Save Lifespan</button>
             </div>
-        </div>
+        </form>
     `);
 }
 
 function applyConversationTTLFromModal() {
     const selected = document.querySelector('input[name="ttl-opt"]:checked');
-    if (selected && state.activeTarget) {
+    const burnChk = document.getElementById('burn-after-read-chk');
+    if (burnChk) {
+        state.burnAfterReading = burnChk.checked;
+    }
+    if (selected) {
         const val = parseInt(selected.value, 10) || 300;
-        state.convTTL[state.activeTarget] = val;
+        if (state.activeTarget) {
+            state.convTTL[state.activeTarget] = val;
+        }
+        // update top main TTL label
+        if (topMainTtlLabelEl) {
+            topMainTtlLabelEl.textContent = `${formatTTL(val)} Lifespan`;
+        }
         savePersistedData();
         renderCorrespondenceSidebar();
         closeModal();

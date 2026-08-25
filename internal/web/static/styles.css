@@ -104,24 +104,21 @@ body.pv-dark-theme {
 }
 
 .pv-top-timer-btn {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--pv-border);
+    background: transparent;
+    border: none;
     color: var(--pv-text-muted);
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.82rem;
+    padding: 6px 8px;
+    font-size: 0.86rem;
     font-weight: 500;
     display: flex;
     align-items: center;
     gap: 7px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: color 0.15s ease;
 }
 
 .pv-top-timer-btn:hover {
-    color: var(--pv-text-main);
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--pv-emerald-light);
 }
 
 .pv-connection-pill {
