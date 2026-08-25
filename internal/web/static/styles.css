@@ -160,6 +160,7 @@ body.pv-dark-theme {
    -------------------------------------------------------------------------- */
 .pv-main-columns {
     flex: 1;
+    width: 100%;
     display: flex;
     gap: 14px;
     overflow: hidden;
@@ -384,14 +385,18 @@ body.pv-dark-theme {
 }
 
 .pv-footer-label {
-    font-size: 0.72rem;
-    color: var(--pv-text-dim);
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--pv-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .pv-footer-fp {
     font-family: var(--pv-font-mono);
-    font-size: 0.82rem;
-    color: var(--pv-text-muted);
+    font-size: 0.76rem;
+    color: var(--pv-emerald-light);
     letter-spacing: 0.5px;
     white-space: nowrap;
     overflow: hidden;
@@ -403,6 +408,7 @@ body.pv-dark-theme {
    -------------------------------------------------------------------------- */
 .pv-chat-workspace {
     flex: 1;
+    min-width: 0;
     height: 100%;
     display: flex;
     flex-direction: column;
