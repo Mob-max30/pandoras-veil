@@ -42,9 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function scrollToBottom() {
-    requestAnimationFrame(() => {
-      msgContainer.scrollTop = msgContainer.scrollHeight;
-    });
+    setTimeout(() => {
+      msgContainer.scrollTop = msgContainer.scrollHeight + 10000;
+    }, 50);
   }
 
   scrollToBottom();

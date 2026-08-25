@@ -82,115 +82,23 @@ body {
   gap: 12px;
   padding: 12px;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
-/* Cyber Box Component */
-.cyber-box {
-  background-color: var(--panel-bg);
-  border-radius: 6px;
-  position: relative;
-  margin-bottom: 10px;
-}
-
-.box-header {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 4px 10px;
-  background-color: rgba(0, 229, 255, 0.05);
-}
-
-.identity-box {
-  border: 1px solid var(--border-cyan);
-}
-.identity-box .box-header {
-  color: var(--cyan-primary);
-  border-bottom: 1px solid var(--cyan-dim);
-}
-
-.channels-box {
-  border: 1px solid var(--border-cyan);
-  flex: 1;
-}
-.channels-box .box-header {
-  color: var(--cyan-primary);
-  border-bottom: 1px solid var(--cyan-dim);
-}
-
-.box-body {
-  padding: 10px;
-  font-size: 0.82rem;
-}
-
-.field {
-  margin-bottom: 4px;
-}
-
-.label { color: var(--text-dim); }
-.val { font-weight: 600; }
-.val.cyan { color: var(--cyan-primary); }
-.val.yellow { color: var(--yellow-accent); }
-.val.green { color: var(--green-bright); }
-
-.section-title {
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  margin-top: 8px;
-  margin-bottom: 4px;
-}
-
-/* Channel List */
-.channel-list {
-  list-style: none;
-}
-
-.channel-item {
-  padding: 5px 8px;
-  border-radius: 4px;
-  cursor: pointer;
+.center-column {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  transition: all 0.15s ease;
-}
-
-.channel-item:hover {
-  background-color: rgba(0, 229, 255, 0.1);
-}
-
-.channel-item.active {
-  background-color: rgba(0, 229, 255, 0.2);
-  color: var(--cyan-primary);
-  font-weight: 600;
-}
-
-.channel-item.highlight {
-  background-color: var(--green-bright);
-  color: #000;
-  font-weight: 700;
-}
-
-.dot.online {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--green-bright);
-  box-shadow: 0 0 6px var(--green-bright);
-}
-
-.dot.offline {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--text-dim);
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Center Stream Box */
 .stream-box {
   border: 1px solid var(--border-green);
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -199,12 +107,14 @@ body {
 .stream-box .box-header {
   color: var(--green-bright);
   border-bottom: 1px solid var(--green-dim);
+  flex-shrink: 0;
 }
 
 .stream-messages {
   flex: 1;
+  min-height: 0;
   padding: 14px;
-  overflow-y: auto;
+  overflow-y: scroll !important;
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
