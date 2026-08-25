@@ -262,3 +262,8 @@ func (s *Store) GetAllAndClearInbox(ctx context.Context, recipient string) ([]st
 	return allMsgs, nil
 }
 
+// FlushDB clears all keys in the current Redis database.
+func (s *Store) FlushDB(ctx context.Context) error {
+	return s.rdb.FlushDB(ctx).Err()
+}
+

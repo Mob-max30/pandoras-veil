@@ -35,6 +35,7 @@ type Store interface {
 	PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error
 	GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error)
 	GetAllAndClearInbox(ctx context.Context, recipient string) ([]string, error)
+	FlushDB(ctx context.Context) error
 }
 
 // TTLPolicy clamps a caller-requested TTL to the server's configured bounds.
@@ -327,6 +328,17 @@ func (h *Handlers) FetchInbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, fetchInboxResponse{Messages: msgs})
+}
+
+// ---- POST/DELETE /admin/clear ----------------------------------------------
+
+func (h *Handlers) FlushServer(w http.ResponseWriter, r *http.Request) {
+	if err := h.Store.FlushDB(r.Context()); err != nil {
+		h.Logger.Error("flushing server db", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "failed to flush database")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
 }
 
 // ---- GET /health ------------------------------------------------------------
