@@ -193,6 +193,7 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .stream-box .box-header {
@@ -204,9 +205,25 @@ body {
   flex: 1;
   padding: 14px;
   overflow-y: auto;
+  scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.stream-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stream-messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.stream-messages::-webkit-scrollbar-thumb {
+  background: var(--green-bright);
+  border-radius: 3px;
+  box-shadow: 0 0 6px var(--green-bright);
 }
 
 /* Chat Bubbles */

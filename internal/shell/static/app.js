@@ -41,6 +41,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    });
+  }
+
+  scrollToBottom();
+
   // File Picker Trigger (/f)
   fileBtn.addEventListener('click', () => {
     triggerFileAttachment();
@@ -63,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
       msgContainer.appendChild(row);
-      msgContainer.scrollTop = msgContainer.scrollHeight;
+      scrollToBottom();
     };
     input.click();
   }
@@ -90,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
       msgContainer.appendChild(row);
-      msgContainer.scrollTop = msgContainer.scrollHeight;
+      scrollToBottom();
 
       cmdInput.value = '';
     }
