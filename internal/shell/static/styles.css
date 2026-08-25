@@ -95,7 +95,7 @@ body {
 /* 3-Column Workspace Grid */
 .workspace-grid {
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 220px 1fr 240px;
   gap: 12px;
   padding: 12px;
   flex: 1;
@@ -181,7 +181,7 @@ body {
 .chat-bubble-row {
   display: flex;
   flex-direction: column;
-  max-width: 75%;
+  max-width: 85%;
 }
 
 .chat-bubble-row.left {
@@ -193,19 +193,19 @@ body {
 }
 
 .bubble-meta {
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   color: var(--text-dim);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .sender-name { color: var(--cyan-primary); font-weight: 600; }
 .you-badge { color: var(--green-bright); font-weight: 700; }
 
 .chat-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 0.88rem;
-  line-height: 1.4;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  line-height: 1.5;
   word-break: break-word;
 }
 
@@ -400,28 +400,36 @@ input:checked + .slider:before { transform: translateX(16px); }
 
 /* Command Bar */
 .command-bar {
-  background-color: #0D1117;
+  background-color: #0B0E14;
   border-top: 1px solid var(--cyan-primary);
-  padding: 10px 14px;
+  padding: 12px 18px;
 }
 
 .command-header {
   color: var(--cyan-primary);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
 }
 
 .command-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--cyan-dim);
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
 .prompt-prefix {
   color: var(--green-bright);
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-shadow: 0 0 8px var(--green-bright);
 }
 
 #cmd-input {
@@ -431,27 +439,42 @@ input:checked + .slider:before { transform: translateX(16px); }
   outline: none;
   color: var(--text-main);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
+  font-weight: 500;
+}
+
+#cmd-input::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .cmd-action-btn {
   background-color: rgba(0, 229, 255, 0.15);
   border: 1px solid var(--cyan-primary);
   color: var(--cyan-primary);
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 6px 14px;
+  border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
+}
+
+.cmd-action-btn:hover {
+  background-color: var(--cyan-primary);
+  color: #000;
+  box-shadow: 0 0 14px var(--cyan-primary);
 }
 
 .shortcut-legend {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--text-dim);
 }
 
 .shortcut-legend .key {
   color: var(--yellow-accent);
-  font-weight: 600;
+  font-weight: 700;
 }
