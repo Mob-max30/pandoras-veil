@@ -3,239 +3,248 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pandora's Veil Web | End-to-End Encrypted Messenger</title>
+    <title>Pandora's Veil | Linen Secure Messenger</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="whatsapp-theme">
-    <div class="whatsapp-app">
-        <!-- Top Green Accent Bar -->
-        <div class="top-accent-bar"></div>
+<body class="linen-theme">
+    <div class="linen-app-container">
+        <!-- Left Forest Green Sidebar -->
+        <aside class="linen-sidebar">
+            <!-- Brand Title Row -->
+            <div class="sidebar-brand-row">
+                <h1 class="brand-logo" onclick="toggleProfileModal()" title="View Device Security Credentials">Pandora</h1>
+                <span class="brand-gold-dot" title="Zero-Knowledge Relay Online"></span>
+            </div>
 
-        <div class="app-window">
-            <!-- Left Sidebar (Chats List & User Profile) -->
-            <aside class="sidebar-pane">
-                <!-- User Profile Header -->
-                <header class="sidebar-header">
-                    <div class="user-avatar-wrapper" onclick="toggleProfileDrawer()" title="View Device Security Info">
-                        <div class="avatar user-avatar" id="my-avatar">U</div>
-                        <span class="online-status-badge"></span>
-                    </div>
-                    <div class="user-info-text">
-                        <div class="user-handle-title" id="my-handle">PV-UJWAL</div>
-                        <div class="user-fp-badge" id="my-fingerprint">FP: BA64-5843</div>
-                    </div>
-                    <div class="header-action-icons">
-                        <button type="button" class="icon-btn" onclick="openNewChatModal()" title="New Chat / Group">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.005 3.175H4.674C3.642 3.175 3 3.789 3 4.821V21.02l3.844-3.844h12.161c1.033 0 1.995-.81 1.995-1.842V4.821c0-1.032-.962-1.646-1.995-1.646zm-4.005 8h-2v2a1 1 0 01-2 0v-2h-2a1 1 0 010-2h2v-2a1 1 0 012 0v2h2a1 1 0 010 2z"></path></svg>
-                        </button>
-                        <button type="button" class="icon-btn" onclick="openSecretDepositModal()" title="Send Self-Destructing Secret">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path></svg>
-                        </button>
-                        <button type="button" class="icon-btn" onclick="toggleSettingsDrawer()" title="Settings & Security Info">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 7a2 2 0 100-4 2 2 0 000 4zm0 7a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                        </button>
-                    </div>
-                </header>
-
-                <!-- Search / Filter Bar -->
-                <div class="sidebar-search-bar">
-                    <div class="search-input-wrapper">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="#8696a0" class="search-icon"><path d="M15.009 13.805h-.636l-.22-.227a5.184 5.184 0 0 0 1.256-3.386 5.207 5.207 0 1 0-5.207 5.208 5.183 5.183 0 0 0 3.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.004zm-4.808 0a3.605 3.605 0 1 1 0-7.21 3.605 3.605 0 0 1 0 7.21z"></path></svg>
-                        <input type="text" id="chat-search" placeholder="Search or start new chat" autocomplete="off">
-                    </div>
+            <!-- Search Correspondence Box -->
+            <div class="sidebar-search-box">
+                <div class="search-input-wrapper">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="chat-search" placeholder="Search correspondence" autocomplete="off">
                 </div>
+            </div>
 
-                <!-- Chat Conversations List -->
-                <div class="conversations-list" id="chats-list">
-                    <!-- Chat Item 1: Active 1-on-1 -->
-                    <div class="chat-item active" data-handle="PV-PRANAV" data-type="dm" data-fp="1E42-2834">
-                        <div class="avatar chat-avatar cyan-avatar">P</div>
-                        <div class="chat-details">
-                            <div class="chat-title-row">
-                                <span class="chat-name">PV-PRANAV</span>
-                                <span class="chat-time" id="chat-time-PV-PRANAV">20:32</span>
-                            </div>
-                            <div class="chat-snippet-row">
-                                <span class="chat-preview" id="preview-PV-PRANAV">why not fine?</span>
-                                <svg viewBox="0 0 16 11" width="14" height="11" fill="#53bdeb" class="check-svg"><path d="M11.07 1.48L5.78 6.77l-1.92-1.92-1.06 1.06 2.98 2.98 6.35-6.35-1.06-1.06zm3.86 0L8.58 7.83l.79.79 6.62-6.62-1.06-1.06z"></path></svg>
-                            </div>
+            <!-- Conversation List -->
+            <div class="correspondence-list" id="chats-list">
+                <!-- Item 1: Active Amara Kessler / Pranav -->
+                <div class="chat-card active" data-handle="PV-PRANAV" data-name="Amara Kessler" data-fp="1E42-2834" data-type="dm" data-avatar="AK" data-avatar-color="avatar-sand">
+                    <div class="avatar avatar-sand">AK</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Amara Kessler</span>
+                            <span class="card-time" id="time-PV-PRANAV">09:41</span>
                         </div>
-                    </div>
-
-                    <!-- Chat Item 2: Group Chat -->
-                    <div class="chat-item" data-handle="Development" data-type="group" data-members="PV-PRANAV,PV-ALICE,PV-BOB">
-                        <div class="avatar chat-avatar green-avatar">#</div>
-                        <div class="chat-details">
-                            <div class="chat-title-row">
-                                <span class="chat-name">#Development</span>
-                                <span class="chat-time">Yesterday</span>
-                            </div>
-                            <div class="chat-snippet-row">
-                                <span class="chat-preview" id="preview-Development">Alice: Deployment verified</span>
-                                <span class="group-badge">Group</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Chat Item 3: Alice -->
-                    <div class="chat-item" data-handle="PV-ALICE" data-type="dm" data-fp="8C03-5019">
-                        <div class="avatar chat-avatar purple-avatar">A</div>
-                        <div class="chat-details">
-                            <div class="chat-title-row">
-                                <span class="chat-name">PV-ALICE</span>
-                                <span class="chat-time">Yesterday</span>
-                            </div>
-                            <div class="chat-snippet-row">
-                                <span class="chat-preview" id="preview-PV-ALICE">End-to-end encrypted session active</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Chat Item 4: Bob -->
-                    <div class="chat-item" data-handle="PV-BOB" data-type="dm" data-fp="915E-B66D">
-                        <div class="avatar chat-avatar orange-avatar">B</div>
-                        <div class="chat-details">
-                            <div class="chat-title-row">
-                                <span class="chat-name">PV-BOB</span>
-                                <span class="chat-time">22/08/2026</span>
-                            </div>
-                            <div class="chat-snippet-row">
-                                <span class="chat-preview" id="preview-PV-BOB">Key verified: 915E-B66D</span>
-                            </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet" id="preview-PV-PRANAV">Can you send the revised deck b...</span>
+                            <span class="unread-pill">2</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Bottom Security Footer -->
-                <div class="sidebar-security-footer">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="#00a884"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"></path></svg>
-                    <span>Your personal messages are end-to-end encrypted</span>
-                </div>
-            </aside>
-
-            <!-- Center Main Chat Window -->
-            <section class="main-chat-pane">
-                <!-- Chat Window Header -->
-                <header class="chat-header">
-                    <div class="active-contact-info" onclick="toggleContactInfoDrawer()">
-                        <div class="avatar chat-avatar cyan-avatar" id="active-chat-avatar">P</div>
-                        <div class="contact-titles">
-                            <div class="contact-name" id="active-contact-name">PV-PRANAV</div>
-                            <div class="contact-subtext" id="active-contact-status">
-                                <svg viewBox="0 0 24 24" width="12" height="12" fill="#00a884" class="lock-svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"></path></svg>
-                                Device Fingerprint: <span id="active-contact-fp" class="fp-highlight">1E42-2834</span>
-                            </div>
+                <!-- Item 2: Dev Ramanathan -->
+                <div class="chat-card" data-handle="PV-DEV" data-name="Dev Ramanathan" data-fp="7C11-884A" data-type="dm" data-avatar="DR" data-avatar-color="avatar-sage">
+                    <div class="avatar avatar-sage">DR</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Dev Ramanathan</span>
+                            <span class="card-time">08:57</span>
                         </div>
-                    </div>
-                    <div class="chat-header-actions">
-                        <!-- Disappearing Messages / TTL Badge -->
-                        <div class="disappearing-badge" onclick="openDisappearingModal()" title="Disappearing messages timer">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="#00a884"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path></svg>
-                            <span id="active-ttl-label">300s TTL</span>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Sounds good — see you at the studio.</span>
                         </div>
-                        <button type="button" class="icon-btn" onclick="openSecretDepositModal()" title="Send Self-Destructing Secret (GETDEL)">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"></path></svg>
-                        </button>
-                        <button type="button" class="icon-btn" onclick="toggleContactInfoDrawer()" title="Contact Info & Security Details">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 7a2 2 0 100-4 2 2 0 000 4zm0 7a2 2 0 100-4 2 2 0 000 4zm0 7a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                        </button>
-                    </div>
-                </header>
-
-                <!-- WhatsApp Chat Messages Area with Wallpaper -->
-                <div class="chat-wallpaper-container" id="chat-messages-scroll">
-                    <div class="messages-flow" id="chat-messages-container">
-                        <!-- Encryption Banner -->
-                        <div class="system-security-card">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="#ffd279"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"></path></svg>
-                            <span>Messages are end-to-end encrypted with native device keys. No one outside of this chat can read them.</span>
-                        </div>
-
-                        <div class="date-divider"><span>TODAY</span></div>
                     </div>
                 </div>
 
-                <!-- Bottom Message Input Bar -->
-                <footer class="chat-footer-bar">
-                    <button type="button" class="icon-btn" onclick="openSecretDepositModal()" title="Attach Secret Key / Deposit">
-                        <svg viewBox="0 0 24 24" width="22" height="22" fill="#8696a0"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5a3 3 0 0 0 6 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"></path></svg>
+                <!-- Item 3: Studio Nine (Group) -->
+                <div class="chat-card" data-handle="Studio-Nine" data-name="Studio Nine" data-members="PV-PRANAV,PV-ALICE,PV-BOB" data-type="group" data-avatar="SN" data-avatar-color="avatar-blush">
+                    <div class="avatar avatar-blush">SN</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Studio Nine</span>
+                            <span class="card-time">Yst</span>
+                        </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Priya: invoices are attached below</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 4: Leo Ferreira -->
+                <div class="chat-card" data-handle="PV-LEO" data-name="Leo Ferreira" data-fp="915E-B66D" data-type="dm" data-avatar="LF" data-avatar-color="avatar-clay">
+                    <div class="avatar avatar-clay">LF</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Leo Ferreira</span>
+                            <span class="card-time">Yst</span>
+                        </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Ha — fair point, noted.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 5: Mira Okafor -->
+                <div class="chat-card" data-handle="PV-MIRA" data-name="Mira Okafor" data-fp="47B7-9F60" data-type="dm" data-avatar="MO" data-avatar-color="avatar-charcoal">
+                    <div class="avatar avatar-charcoal">MO</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Mira Okafor</span>
+                            <span class="card-time">Mon</span>
+                        </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Voice note • 0:34</span>
+                            <span class="unread-pill">1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 6: Tomas Weber -->
+                <div class="chat-card" data-handle="PV-TOMAS" data-name="Tomas Weber" data-fp="33A1-7092" data-type="dm" data-avatar="TW" data-avatar-color="avatar-sand">
+                    <div class="avatar avatar-sand">TW</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Tomas Weber</span>
+                            <span class="card-time">Mon</span>
+                        </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Booked the flights, confirmation below.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 7: Home / Family -->
+                <div class="chat-card" data-handle="Family" data-name="Home" data-type="group" data-avatar="Fam" data-avatar-color="avatar-sage">
+                    <div class="avatar avatar-sage">Fam</div>
+                    <div class="chat-card-content">
+                        <div class="chat-card-header">
+                            <span class="contact-card-name">Home</span>
+                            <span class="card-time">Sun</span>
+                        </div>
+                        <div class="chat-card-footer">
+                            <span class="card-snippet">Dad: dinner's at 7 on Saturday</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom User Identity Badge -->
+            <div class="sidebar-user-footer" onclick="toggleProfileModal()">
+                <div class="footer-avatar" id="my-avatar">U</div>
+                <div class="footer-user-details">
+                    <div class="footer-handle" id="my-handle">PV-UJWAL</div>
+                    <div class="footer-fp" id="my-fingerprint">FP: BA64-5843</div>
+                </div>
+                <button type="button" class="icon-action-btn" onclick="event.stopPropagation(); openNewChatModal();" title="Start New Conversation">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Right Linen Main Chat Workspace -->
+        <main class="linen-chat-workspace">
+            <!-- Workspace Header -->
+            <header class="workspace-header">
+                <div class="contact-profile-section" onclick="openContactDetailsModal()">
+                    <div class="avatar avatar-sand" id="active-header-avatar">AK</div>
+                    <div class="contact-title-group">
+                        <h2 class="active-contact-title" id="active-contact-title">Amara Kessler</h2>
+                        <div class="active-status-line">
+                            <span class="status-dot"></span>
+                            <span id="active-status-text">Active now</span>
+                            <span class="fp-subtle" id="active-fp-subtle">• 1E42-2834</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workspace-header-actions">
+                    <button type="button" class="header-action-btn" onclick="openSecretDepositModal()" title="Attach Secret / Self-Destructing Deposit (GETDEL)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                     </button>
-                    
-                    <form id="message-form" class="wa-input-form">
-                        <input type="text" id="chat-input" placeholder="Type a message" autocomplete="off" autofocus>
-                        <button type="submit" class="send-btn" id="send-button" title="Send message">
-                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#00a884"><path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"></path></svg>
-                        </button>
-                    </form>
-                </footer>
-            </section>
-
-            <!-- Right Collapsible Drawer (Contact & Security Info) -->
-            <aside class="contact-info-drawer hidden" id="contact-info-drawer">
-                <header class="drawer-header">
-                    <button type="button" class="icon-btn" onclick="toggleContactInfoDrawer()">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H19v-2z"></path></svg>
+                    <button type="button" class="header-action-btn" onclick="openDisappearingModal()" title="Disappearing Messages Timer">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     </button>
-                    <span>Contact Info</span>
-                </header>
-                <div class="drawer-body">
-                    <div class="profile-card">
-                        <div class="avatar drawer-avatar cyan-avatar" id="drawer-avatar">P</div>
-                        <h2 class="drawer-handle" id="drawer-handle">PV-PRANAV</h2>
-                        <span class="security-verified-tag">Verified Cryptographic Identity</span>
+                    <button type="button" class="header-action-btn" onclick="openContactDetailsModal()" title="Correspondence Details">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="5" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="19" cy="12" r="1.5"></circle></svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Messages Flow on Linen Textured Surface -->
+            <div class="chat-canvas-scroll" id="chat-messages-scroll">
+                <div class="canvas-flow" id="chat-messages-container">
+                    <!-- Centered Dotted Today Separator -->
+                    <div class="linen-date-separator">
+                        <span class="sep-line"></span>
+                        <span class="sep-label">TODAY</span>
+                        <span class="sep-line"></span>
                     </div>
 
-                    <div class="drawer-section">
-                        <h3>Device Security & Fingerprint</h3>
-                        <div class="drawer-row">
-                            <span class="label">Fingerprint:</span>
-                            <span class="value code-val" id="drawer-fp">1E42-2834</span>
+                    <!-- Amara Message 1 -->
+                    <div class="linen-bubble-group incoming-group">
+                        <div class="linen-card incoming-card">
+                            <p>Morning — how's the highway dataset labeling coming along?</p>
                         </div>
-                        <div class="drawer-row">
-                            <span class="label">Public Key:</span>
-                            <span class="value code-val" id="drawer-pubkey">age1q8ulqk4630rw...</span>
-                        </div>
-                        <div class="drawer-row">
-                            <span class="label">Encryption Suite:</span>
-                            <span class="value">X25519 / ChaCha20-Poly1305</span>
+                        <span class="bubble-time-stamp">09:12</span>
+                    </div>
+
+                    <!-- My Response 1 -->
+                    <div class="linen-bubble-group outgoing-group">
+                        <div class="linen-card outgoing-card">
+                            <p>About 70% through. Frame extraction was slower than expected but accuracy's holding up well.</p>
                         </div>
                     </div>
 
-                    <div class="drawer-section">
-                        <h3>Disappearing Messages & TTL</h3>
-                        <div class="drawer-row">
-                            <span class="label">Timer Lifespan:</span>
-                            <select id="drawer-ttl-select" onchange="updateTTLFromSelect(this.value)">
-                                <option value="60">60 Seconds</option>
-                                <option value="300" selected>5 Minutes (300s)</option>
-                                <option value="3600">1 Hour</option>
-                                <option value="86400">24 Hours</option>
-                            </select>
+                    <!-- Amara Message 2 -->
+                    <div class="linen-bubble-group incoming-group">
+                        <div class="linen-card incoming-card">
+                            <p>Great — that lines up well with the review timeline.</p>
                         </div>
-                        <div class="drawer-row">
-                            <span class="label">Burn-After-Reading:</span>
-                            <label class="switch-small">
-                                <input type="checkbox" id="drawer-burn-switch" checked onchange="toggleBurnSetting(this.checked)">
-                                <span class="slider-small"></span>
-                            </label>
+                        <span class="bubble-time-stamp">09:20</span>
+                    </div>
+
+                    <!-- Amara Message 3 -->
+                    <div class="linen-bubble-group incoming-group">
+                        <div class="linen-card incoming-card">
+                            <p>Can you send the revised deck before noon?</p>
+                        </div>
+                        <span class="bubble-time-stamp">09:41</span>
+                    </div>
+
+                    <!-- My Response 2 -->
+                    <div class="linen-bubble-group outgoing-group">
+                        <div class="linen-card outgoing-card">
+                            <p>Yep, finishing the last two slides now. Will have it to you by 11:30.</p>
                         </div>
                     </div>
                 </div>
-            </aside>
-        </div>
+            </div>
+
+            <!-- Bottom Floating Pill Input Bar -->
+            <footer class="workspace-input-dock">
+                <form id="message-form" class="linen-input-pill">
+                    <button type="button" class="pill-clip-btn" onclick="openSecretDepositModal()" title="Attach Secret (Redis GETDEL)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    </button>
+                    <input type="text" id="chat-input" placeholder="Write a message" autocomplete="off" autofocus>
+                    <button type="submit" class="pill-send-btn" id="send-button" title="Send encrypted message">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                    </button>
+                </form>
+            </footer>
+        </main>
     </div>
 
     <!-- Modals -->
-    <div id="modal-backdrop" class="wa-modal-backdrop hidden" onclick="handleBackdropClick(event)">
-        <div class="wa-modal-card" onclick="event.stopPropagation()">
-            <div class="wa-modal-header">
-                <h3 id="modal-title">New Chat</h3>
-                <button type="button" class="close-btn" onclick="closeModal()">✕</button>
+    <div id="modal-backdrop" class="linen-modal-backdrop hidden" onclick="handleBackdropClick(event)">
+        <div class="linen-modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header-bar">
+                <h3 id="modal-title">Correspondence Details</h3>
+                <button type="button" class="modal-close-btn" onclick="closeModal()">✕</button>
             </div>
-            <div class="wa-modal-body" id="modal-body"></div>
+            <div class="modal-content-area" id="modal-body"></div>
         </div>
     </div>
 
