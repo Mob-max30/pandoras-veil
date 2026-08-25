@@ -67,9 +67,6 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 		}
 
 		handle := strings.TrimSpace(req.Handle)
-		if !strings.HasPrefix(strings.ToUpper(handle), "PV-") {
-			handle = "PV-" + strings.ToUpper(handle)
-		}
 
 		// Generate keypair
 		identity, err := crypto.GenerateIdentity()
