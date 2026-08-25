@@ -86,12 +86,36 @@ body {
   overflow: hidden;
 }
 
-.center-column {
+.section-header-row {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+.mini-btn {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid var(--cyan-primary);
+  color: var(--cyan-primary);
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.mini-btn:hover {
+  background: var(--cyan-primary);
+  color: #000;
+}
+
+.empty-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 4px 6px;
 }
 
 /* Center Stream Box */

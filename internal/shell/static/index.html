@@ -41,18 +41,20 @@
         <div class="cyber-box channels-box">
           <div class="box-header">── CHANNELS ──</div>
           <div class="box-body">
-            <div class="section-title">Active Messages</div>
+            <div class="section-header-row">
+              <span class="section-title">Active Messages</span>
+              <button id="add-dm-btn" class="mini-btn" title="Start new direct message">+ DM</button>
+            </div>
             <ul class="channel-list" id="dm-list">
-              <li class="channel-item active" data-handle="PV-UJWAL"><span class="dot online"></span> PV-UJWAL</li>
-              <li class="channel-item" data-handle="PV-PAVAN"><span class="dot offline"></span> PV-PAVAN</li>
+              <li class="empty-hint">(No active chats yet)</li>
             </ul>
 
-            <div class="section-title">Group Chats</div>
+            <div class="section-header-row">
+              <span class="section-title">Group Chats</span>
+              <button id="add-group-btn" class="mini-btn" title="Create new group chat">+ Group</button>
+            </div>
             <ul class="channel-list" id="group-list">
-              <li class="channel-item highlight" data-group="#Development"><span class="hash">#</span>Development <span class="dot online"></span></li>
-              <li class="channel-item" data-group="#Alpha_Team"><span class="hash">#</span>Alpha_Team</li>
-              <li class="channel-item" data-group="#Ops_Center"><span class="hash">#</span>Ops_Center</li>
-              <li class="channel-item" data-group="#General"><span class="hash">#</span>General</li>
+              <li class="channel-item active" data-group="#Development"><span class="hash">#</span>Development <span class="dot online"></span></li>
             </ul>
           </div>
         </div>

@@ -8,8 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const burnToggle = document.getElementById('burn-toggle');
   const burnText = document.getElementById('burn-text');
   const ttlBtns = document.querySelectorAll('.ttl-btn');
+  const dmList = document.getElementById('dm-list');
+  const groupList = document.getElementById('group-list');
+  const addDmBtn = document.getElementById('add-dm-btn');
+  const addGroupBtn = document.getElementById('add-group-btn');
 
-  let activeChannel = 'PV-UJWAL';
+  let activeChannel = '#Development';
   let activeTTL = 300;
   let isBurnActive = true;
 
@@ -29,16 +33,60 @@ document.addEventListener('DOMContentLoaded', () => {
     burnText.className = isBurnActive ? 'green' : 'dim';
   });
 
-  // Channel Item Selection
-  document.querySelectorAll('.channel-item').forEach(item => {
-    item.addEventListener('click', () => {
-      document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      activeChannel = item.dataset.handle || item.dataset.group;
-      headerChannelTitle.textContent = activeChannel;
-      cmdChannelTag.textContent = activeChannel;
-      recipMeta.textContent = activeChannel + ' ..';
+  function bindChannelEvents() {
+    document.querySelectorAll('.channel-item').forEach(item => {
+      item.onclick = () => {
+        document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        activeChannel = item.dataset.handle || item.dataset.group;
+        headerChannelTitle.textContent = activeChannel;
+        cmdChannelTag.textContent = activeChannel;
+        recipMeta.textContent = activeChannel + ' ..';
+      };
     });
+  }
+
+  bindChannelEvents();
+
+  // Add DM
+  addDmBtn.addEventListener('click', () => {
+    const handle = prompt('Enter recipient handle (e.g., PV-UJWAL):');
+    if (!handle) return;
+    const cleanHandle = handle.trim().toUpperCase();
+    if (!cleanHandle) return;
+
+    const emptyHint = dmList.querySelector('.empty-hint');
+    if (emptyHint) emptyHint.remove();
+
+    let existing = dmList.querySelector(`[data-handle="${cleanHandle}"]`);
+    if (!existing) {
+      existing = document.createElement('li');
+      existing.className = 'channel-item';
+      existing.dataset.handle = cleanHandle;
+      existing.innerHTML = `<span class="dot online"></span> ${cleanHandle}`;
+      dmList.appendChild(existing);
+      bindChannelEvents();
+    }
+    existing.click();
+  });
+
+  // Add Group
+  addGroupBtn.addEventListener('click', () => {
+    const name = prompt('Enter group chat name (e.g., #Security_Team):');
+    if (!name) return;
+    let cleanGroup = name.trim();
+    if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
+
+    let existing = groupList.querySelector(`[data-group="${cleanGroup}"]`);
+    if (!existing) {
+      existing = document.createElement('li');
+      existing.className = 'channel-item';
+      existing.dataset.group = cleanGroup;
+      existing.innerHTML = `<span class="hash">#</span>${cleanGroup.replace('#', '')} <span class="dot online"></span>`;
+      groupList.appendChild(existing);
+      bindChannelEvents();
+    }
+    existing.click();
   });
 
   function scrollToBottom() {
