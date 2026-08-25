@@ -41,13 +41,6 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 		}
 	}
 
-	// Check if identity already exists
-	if _, err := os.Stat(targetPath); err == nil && !*forceFlag {
-		ui.Warn("Device identity already exists at %s", targetPath)
-		ui.Info("Use --force to overwrite, or run 'pandora identity' to view existing credentials.")
-		return 1
-	}
-
 	// If using real HTTP client, update base URL from flag
 	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
 		httpCl.BaseURL = *relayFlag
@@ -57,6 +50,49 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 	if err := apiClient.Health(); err != nil {
 		ui.Error("SERVER OFFLINE: Cannot connect to relay server at %s. Exiting.", *relayFlag)
 		return 1
+	}
+
+	// Check if identity already exists locally
+	if _, err := os.Stat(targetPath); err == nil && !*forceFlag {
+		existingId, err := storage.LoadIdentity(targetPath)
+		if err == nil && existingId.PublicKey != "" {
+			// Check if already registered on the server
+			serverKey, err := apiClient.GetKey(existingId.Handle)
+			if err == nil && serverKey.PublicKey == existingId.PublicKey {
+				ui.Success("Device identity is already registered on the relay server!")
+				fmt.Fprintf(ui.Out, "\n%sDevice Credentials:%s\n", ColorBold, ColorReset)
+				fmt.Fprintf(ui.Out, "  Handle:      %s%s%s\n", ColorCyan, existingId.Handle, ColorReset)
+				fmt.Fprintf(ui.Out, "  Fingerprint: %s%s%s\n", ColorYellow, existingId.Fingerprint, ColorReset)
+				fmt.Fprintf(ui.Out, "  Public Key:  %s\n", existingId.PublicKey)
+				fmt.Fprintf(ui.Out, "  Config File: %s (0600 permissions)\n\n", targetPath)
+				return 0
+			}
+
+			// Server restarted or lost key -> automatically re-register existing identity!
+			ui.Info("Existing local identity found. Re-registering with relay server (%s)...", *relayFlag)
+			handleToRegister := existingId.Handle
+			if *handleFlag != "" {
+				handleToRegister = *handleFlag
+			}
+			regInfo, err := apiClient.RegisterKey(handleToRegister, existingId.PublicKey)
+			if err != nil {
+				if err == client.ErrConflict {
+					ui.Error("Handle '%s' is already registered by another device on the relay! Use --force to generate a new identity.", handleToRegister)
+					return 1
+				}
+				ui.Error("Failed to re-register with relay: %v", err)
+				return 1
+			}
+			existingId.Handle = regInfo.Handle
+			_ = storage.SaveIdentity(targetPath, existingId)
+			ui.Success("Device re-registered on relay server successfully!")
+			fmt.Fprintf(ui.Out, "\n%sDevice Credentials:%s\n", ColorBold, ColorReset)
+			fmt.Fprintf(ui.Out, "  Handle:      %s%s%s\n", ColorCyan, existingId.Handle, ColorReset)
+			fmt.Fprintf(ui.Out, "  Fingerprint: %s%s%s\n", ColorYellow, existingId.Fingerprint, ColorReset)
+			fmt.Fprintf(ui.Out, "  Public Key:  %s\n", existingId.PublicKey)
+			fmt.Fprintf(ui.Out, "  Config File: %s (0600 permissions)\n\n", targetPath)
+			return 0
+		}
 	}
 
 	ui.Info("Generating new X25519 device keypair...")
