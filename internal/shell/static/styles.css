@@ -98,8 +98,19 @@ body {
   grid-template-columns: 220px 1fr 240px;
   gap: 12px;
   padding: 12px;
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
+  height: calc(100vh - 120px);
+  overflow: hidden;
+}
+
+.left-column,
+.center-column,
+.right-column {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -205,10 +216,12 @@ body {
 .stream-box {
   border: 1px solid var(--border-green);
   height: 100%;
+  max-height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: 1 1 0;
 }
 
 .stream-box .box-header {
@@ -218,10 +231,12 @@ body {
 }
 
 .stream-messages {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
-  padding: 14px;
-  overflow-y: scroll !important;
+  max-height: 100%;
+  padding: 16px;
+  overflow-y: auto !important;
+  overflow-x: hidden;
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
