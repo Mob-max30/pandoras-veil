@@ -630,16 +630,17 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				if err != nil {
 					continue
 				}
-				timestamp := time.Now().Format("15:04:05")
+				timestamp := time.Now().Format("15:04")
 				senderName := msg.Sender
 				if senderName == "" {
 					senderName = m.handle
 				}
-				fmt.Fprintf(ui.Out, "%s[%s]%s %s[%s] ❯%s %s\n",
-					ColorDim, timestamp, ColorReset,
-					ColorBold+ColorMagenta, senderName, ColorReset,
-					string(plaintext),
-				)
+				state.AddMessage(ChatMessage{
+					Timestamp:  timestamp,
+					Sender:     senderName,
+					Text:       string(plaintext),
+					IsOutgoing: false,
+				})
 			}
 		}
 	}
