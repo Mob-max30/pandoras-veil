@@ -14,7 +14,7 @@ func runIdentity(args []string, ui *UI, apiClient client.Client) int {
 	fs.SetOutput(ui.Out)
 
 	pathFlag := fs.String("config", "", "Custom path for identity file (defaults to ~/.pandora/identity.json)")
-	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
+	relayFlag := fs.String("relay", client.DefaultRelayURL, "Relay server URL")
 
 	fs.Usage = func() {
 		fmt.Fprintf(ui.Out, "Usage: pandora identity [options]\n\n")

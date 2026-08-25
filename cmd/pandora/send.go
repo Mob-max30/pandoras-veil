@@ -20,7 +20,7 @@ func runSend(args []string, ui *UI, apiClient client.Client) int {
 	fileFlag := fs.String("file", "", "Path to file containing secret payload")
 	ttlFlag := fs.Int("ttl", 86400, "Time-to-live in seconds (default: 86400 = 24 hours)")
 	burnFlag := fs.Bool("burn", false, "Burn after reading (destroy secret immediately upon first decryption)")
-	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
+	relayFlag := fs.String("relay", client.DefaultRelayURL, "Relay server URL")
 	_ = fs.String("config", "", "Optional path for local config file")
 
 	fs.Usage = func() {

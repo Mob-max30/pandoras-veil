@@ -32,7 +32,7 @@ func printGlobalUsage(ui *UI) {
 
 func main() {
 	ui := NewUI(os.Stdin, os.Stdout)
-	apiClient := client.NewHTTPClient("http://127.0.0.1:8080")
+	apiClient := client.NewHTTPClient(client.DefaultRelayURL)
 
 	if len(os.Args) < 2 {
 		printGlobalUsage(ui)

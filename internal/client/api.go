@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"time"
 )
+
+const DefaultRelayURL = "https://pandoras-veil.onrender.com"
 
 // Common errors returned by the relay client
 var (
@@ -79,12 +82,12 @@ type HTTPClient struct {
 func NewHTTPClient(baseURL string) *HTTPClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	if baseURL == "" {
-		baseURL = "http://127.0.0.1:8080"
+		baseURL = DefaultRelayURL
 	}
 	return &HTTPClient{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 15 * time.Second,
 		},
 	}
 }
@@ -146,8 +149,13 @@ func (c *HTTPClient) GetKey(handle string) (*KeyInfo, error) {
 
 // PostPaste calls POST /paste
 func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
+	b64Ciphertext := ciphertext
+	if _, err := base64.StdEncoding.DecodeString(ciphertext); err != nil {
+		b64Ciphertext = base64.StdEncoding.EncodeToString([]byte(ciphertext))
+	}
+
 	reqBody := PasteCreateRequest{
-		Ciphertext:       ciphertext,
+		Ciphertext:       b64Ciphertext,
 		TTLSeconds:       ttlSeconds,
 		BurnAfterReading: burnAfterReading,
 	}
@@ -176,8 +184,13 @@ func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 
 // PostChatMessage calls POST /paste with recipient and sender routing metadata
 func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
+	b64Ciphertext := ciphertext
+	if _, err := base64.StdEncoding.DecodeString(ciphertext); err != nil {
+		b64Ciphertext = base64.StdEncoding.EncodeToString([]byte(ciphertext))
+	}
+
 	reqBody := PasteCreateRequest{
-		Ciphertext:       ciphertext,
+		Ciphertext:       b64Ciphertext,
 		Recipient:        recipient,
 		Sender:           sender,
 		TTLSeconds:       86400,
@@ -239,6 +252,9 @@ func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent)
 			payload := strings.TrimPrefix(line, "data: ")
 			var event StreamEvent
 			if err := json.Unmarshal([]byte(payload), &event); err == nil {
+				if decoded, err := base64.StdEncoding.DecodeString(event.Ciphertext); err == nil {
+					event.Ciphertext = string(decoded)
+				}
 				onMessage(event)
 			}
 		}
@@ -265,6 +281,9 @@ func (c *HTTPClient) GetPaste(id string) (string, error) {
 	var pasteResp PasteResponse
 	if err := json.NewDecoder(resp.Body).Decode(&pasteResp); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(pasteResp.Ciphertext); err == nil {
+		return string(decoded), nil
 	}
 	return pasteResp.Ciphertext, nil
 }

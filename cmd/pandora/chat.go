@@ -21,7 +21,7 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 	fs.SetOutput(ui.Out)
 
 	withFlag := fs.String("with", "", "Recipient handle to chat with (e.g. PV-BOB) (required)")
-	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
+	relayFlag := fs.String("relay", client.DefaultRelayURL, "Relay server URL")
 	pathFlag := fs.String("config", "", "Custom path for local identity file")
 
 	fs.Usage = func() {
