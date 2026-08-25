@@ -474,43 +474,79 @@ func (c *HTTPClient) PostGroupChatMessage(recipients []string, sender, ciphertex
 
 func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
 	streamURL := fmt.Sprintf("%s/stream?handle=%s", c.BaseURL, handle)
-	req, err := http.NewRequest("GET", streamURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create stream request: %w", err)
-	}
-	req.Header.Set("Accept", "text/event-stream")
 
-	streamClient := &http.Client{Timeout: 0}
-	resp, err := streamClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
-	}
-	defer resp.Body.Close()
+	for {
+		select {
+		case <-stopCh:
+			return nil
+		default:
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("stream connection failed with status %d", resp.StatusCode)
-	}
+		req, err := http.NewRequest("GET", streamURL, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create stream request: %w", err)
+		}
+		req.Header.Set("Accept", "text/event-stream")
 
-	go func() {
-		<-stopCh
-		resp.Body.Close()
-	}()
-
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "data: ") {
-			payload := strings.TrimPrefix(line, "data: ")
-			var event StreamEvent
-			if err := json.Unmarshal([]byte(payload), &event); err == nil {
-				if decoded, err := base64.StdEncoding.DecodeString(event.Ciphertext); err == nil {
-					event.Ciphertext = string(decoded)
-				}
-				onMessage(event)
+		streamClient := &http.Client{Timeout: 0}
+		resp, err := streamClient.Do(req)
+		if err != nil {
+			select {
+			case <-stopCh:
+				return nil
+			case <-time.After(2 * time.Second):
+				continue
 			}
 		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			select {
+			case <-stopCh:
+				return nil
+			case <-time.After(2 * time.Second):
+				continue
+			}
+		}
+
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-stopCh:
+				resp.Body.Close()
+			case <-done:
+			}
+		}()
+
+		const maxCapacity = 16 * 1024 * 1024 // 16 MB max buffer for large file payloads
+		buf := make([]byte, 64*1024)
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(buf, maxCapacity)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "data: ") {
+				payload := strings.TrimPrefix(line, "data: ")
+				var event StreamEvent
+				if err := json.Unmarshal([]byte(payload), &event); err == nil {
+					if decoded, err := base64.StdEncoding.DecodeString(event.Ciphertext); err == nil {
+						event.Ciphertext = string(decoded)
+					}
+					onMessage(event)
+				}
+			}
+		}
+
+		close(done)
+		resp.Body.Close()
+
+		select {
+		case <-stopCh:
+			return nil
+		case <-time.After(1 * time.Second):
+			// Auto-reconnect SSE stream
+		}
 	}
-	return nil
 }
 
 func (c *HTTPClient) GetPaste(id string) (string, error) {
