@@ -910,6 +910,143 @@ body.pv-dark-theme {
     line-height: 1.4;
 }
 
+/* Group Sender Header Badge */
+.pv-group-sender-tag {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--pv-emerald-light);
+    margin-bottom: 4px;
+    margin-left: 4px;
+    letter-spacing: 0.3px;
+}
+
+/* Mini Change Handle Button in Profile Footer */
+.pv-mini-change-btn {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    color: var(--pv-emerald-light);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.pv-mini-change-btn:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: var(--pv-emerald);
+}
+
+/* Interactive Group Member Selector & Chips */
+.pv-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 38px;
+    padding: 6px 10px;
+    background: var(--pv-bg-input);
+    border: 1px solid var(--pv-border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.pv-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.18);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 20px;
+}
+
+.pv-chip-remove {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    font-size: 0.86rem;
+}
+
+.pv-chip-remove:hover {
+    color: var(--pv-text-danger);
+}
+
+.pv-contacts-picker-box {
+    max-height: 140px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--pv-border);
+    border-radius: 10px;
+    padding: 6px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pv-contact-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.84rem;
+    transition: background 0.12s ease;
+}
+
+.pv-contact-checkbox-item:hover {
+    background: var(--pv-bg-card-hover);
+}
+
+.pv-search-result-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+    margin-top: 8px;
+}
+
+.pv-search-result-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.pv-search-result-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--pv-text-main);
+}
+
+.pv-search-result-fp {
+    font-family: var(--pv-font-mono);
+    font-size: 0.72rem;
+    color: var(--pv-text-muted);
+}
+
+.pv-add-member-btn {
+    background: var(--pv-emerald);
+    color: #ffffff;
+    border: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.pv-add-member-btn:hover {
+    background: #059669;
+}
+
 .hidden {
     display: none !important;
 }

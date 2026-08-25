@@ -29,6 +29,15 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const state = {
     myHandle: '',
     myFingerprint: '',
@@ -39,9 +48,9 @@ const state = {
     activeTargetPK: '',
     isGroup: false,
     groupMembers: [],
-    defaultTTL: 300,     // Global default lifespan (default 300s / 5m)
-    convTTL: {},        // Main Disappearing TTL per conversation
-    customMsgTTL: 0,    // 0 means inherit main TTL; >0 means independent custom TTL
+    defaultTTL: 300,
+    convTTL: {},
+    customMsgTTL: 0,
     burnAfterReading: true,
     eventSource: null,
     contacts: [],
@@ -49,52 +58,65 @@ const state = {
     serverConnected: false
 };
 
+const seenMessageIDs = new Set();
+
 function getAuthToken() {
     const meta = document.querySelector('meta[name="pandora-token"]');
     return meta ? meta.getAttribute('content') : '';
 }
 
-// Persistence Utilities (Stores ONLY real user interactions)
-function loadPersistedData() {
-    try {
-        const savedContacts = localStorage.getItem('pandora_contacts_v6');
-        const savedConvs = localStorage.getItem('pandora_conversations_v6');
-        const savedTarget = localStorage.getItem('pandora_active_target_v6');
-        const savedTTL = localStorage.getItem('pandora_conv_ttl_v6');
-        const savedDefaultTTL = localStorage.getItem('pandora_default_ttl_v6');
-
-        state.contacts = savedContacts ? JSON.parse(savedContacts) : [];
-        // Sanitize any empty or invalid contact entries
-        state.contacts = state.contacts.filter(c => c && c.handle && c.handle.trim() !== '');
-        state.conversations = savedConvs ? JSON.parse(savedConvs) : {};
-        state.convTTL = savedTTL ? JSON.parse(savedTTL) : {};
-        state.defaultTTL = savedDefaultTTL ? parseInt(savedDefaultTTL, 10) : 300;
-
-        if (savedTarget && state.contacts.some(c => c.handle === savedTarget)) {
-            state.activeTarget = savedTarget;
-        } else if (state.contacts.length > 0) {
-            state.activeTarget = state.contacts[0].handle;
-        } else {
-            state.activeTarget = '';
+// 0. Pure Server-Side Session Synchronization (Zero Browser LocalStorage)
+let saveDebounceTimer = null;
+function syncServerSession() {
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(async () => {
+        try {
+            const token = getAuthToken();
+            await fetch('/api/conversations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Pandora-Token': token
+                },
+                body: JSON.stringify({
+                    contacts: state.contacts,
+                    conversations: state.conversations,
+                    mainTTLs: state.convTTL
+                })
+            });
+        } catch (e) {
+            console.warn('Session sync warning:', e);
         }
-    } catch (e) {
-        state.contacts = [];
-        state.conversations = {};
-        state.convTTL = {};
-        state.defaultTTL = 300;
-        state.activeTarget = '';
-    }
+    }, 300);
 }
 
-function savePersistedData() {
+async function loadServerSession() {
     try {
-        localStorage.setItem('pandora_contacts_v6', JSON.stringify(state.contacts));
-        localStorage.setItem('pandora_conversations_v6', JSON.stringify(state.conversations));
-        localStorage.setItem('pandora_active_target_v6', state.activeTarget);
-        localStorage.setItem('pandora_conv_ttl_v6', JSON.stringify(state.convTTL));
-        localStorage.setItem('pandora_default_ttl_v6', String(state.defaultTTL));
+        const token = getAuthToken();
+        const res = await fetch('/api/conversations', {
+            headers: { 'X-Pandora-Token': token }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            state.contacts = data.contacts || [];
+            state.conversations = data.conversations || {};
+            state.convTTL = data.mainTTLs || {};
+
+            // Re-populate seenMessageIDs from session history
+            Object.values(state.conversations).forEach(msgs => {
+                if (Array.isArray(msgs)) {
+                    msgs.forEach(m => {
+                        if (m && m.id) seenMessageIDs.add(m.id);
+                    });
+                }
+            });
+
+            if (state.contacts.length > 0 && !state.activeTarget) {
+                state.activeTarget = state.contacts[0].handle;
+            }
+        }
     } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
+        console.warn('Failed to load server session:', e);
     }
 }
 
@@ -125,8 +147,6 @@ const initSubmitBtnEl = document.getElementById('init-submit-button');
 
 // 1. Initialize App & Connect to Stream
 async function initApp() {
-    loadPersistedData();
-
     try {
         const token = getAuthToken();
         const res = await fetch('/api/identity', {
@@ -156,6 +176,7 @@ async function initApp() {
         return;
     }
 
+    await loadServerSession();
     renderCorrespondenceSidebar();
     setupEventListeners();
     connectSSEStream();
@@ -203,9 +224,11 @@ async function handleInitSubmit(e) {
             state.myPublicKey = data.publicKey;
             state.serverConnected = true;
 
-            myFingerprintEl.textContent = state.myFingerprint;
+            if (myHandleLabelEl) myHandleLabelEl.textContent = state.myHandle;
+            if (myFingerprintEl) myFingerprintEl.textContent = state.myFingerprint;
 
             hideInitOverlay();
+            await loadServerSession();
             renderCorrespondenceSidebar();
             setupEventListeners();
             connectSSEStream();
@@ -224,13 +247,13 @@ async function handleInitSubmit(e) {
     }
 }
 
-// 2. Render Correspondence List in Sidebar
+// 2. Render Correspondence List in Sidebar (Case-Insensitive & Deduplicated)
 function renderCorrespondenceSidebar() {
     directChatsListEl.innerHTML = '';
     groupChatsListEl.innerHTML = '';
 
-    const directContacts = state.contacts.filter(c => c.type !== 'group');
-    const groupContacts = state.contacts.filter(c => c.type === 'group');
+    const directContacts = state.contacts.filter(c => !c.isGroup && !c.handle.startsWith('#'));
+    const groupContacts = state.contacts.filter(c => c.isGroup || c.handle.startsWith('#'));
 
     // Render Direct Contacts
     if (directContacts.length === 0) {
@@ -240,8 +263,8 @@ function renderCorrespondenceSidebar() {
         directChatsListEl.appendChild(emptyEl);
     } else {
         directContacts.forEach(contact => {
-            const initials = getInitials(contact.name || contact.handle);
-            const isActive = contact.handle === state.activeTarget;
+            const initials = getInitials(contact.displayName || contact.handle);
+            const isActive = contact.handle.toLowerCase() === state.activeTarget.toLowerCase();
 
             const card = document.createElement('div');
             card.className = `pv-contact-card ${isActive ? 'active' : ''}`;
@@ -249,7 +272,7 @@ function renderCorrespondenceSidebar() {
 
             card.innerHTML = `
                 <div class="card-avatar">${initials}</div>
-                <span class="card-name">${contact.name || contact.handle}</span>
+                <span class="card-name">${escapeHTML(contact.displayName || contact.handle)}</span>
                 ${isActive ? '<span class="card-dot"></span>' : ''}
             `;
 
@@ -269,11 +292,11 @@ function renderCorrespondenceSidebar() {
         groupChatsListEl.appendChild(emptyEl);
     } else {
         groupContacts.forEach(contact => {
-            const isActive = contact.handle === state.activeTarget;
+            const isActive = contact.handle.toLowerCase() === state.activeTarget.toLowerCase();
             const card = document.createElement('div');
             card.className = `pv-group-card ${isActive ? 'active' : ''}`;
             card.setAttribute('data-handle', contact.handle);
-            card.textContent = contact.name || contact.handle;
+            card.textContent = contact.displayName || contact.handle;
 
             card.addEventListener('click', () => {
                 selectContact(contact.handle);
@@ -284,20 +307,27 @@ function renderCorrespondenceSidebar() {
     }
 
     // Update active header details
-    const activeContact = state.contacts.find(c => c.handle === state.activeTarget);
+    const activeContact = state.contacts.find(c => c.handle.toLowerCase() === state.activeTarget.toLowerCase());
     const mainTTL = getMainTTL(state.activeTarget);
 
     if (activeContact) {
-        const initials = getInitials(activeContact.name || activeContact.handle);
+        const initials = getInitials(activeContact.displayName || activeContact.handle);
         activeHeaderAvatarEl.textContent = initials;
-        activeContactTitleEl.textContent = activeContact.name || activeContact.handle;
-        activeStatusTextEl.textContent = activeContact.type === 'group' 
-            ? `${activeContact.members.length} Members · End-to-end verified` 
-            : 'Online · End-to-end verified';
-        state.isGroup = activeContact.type === 'group';
+        activeContactTitleEl.textContent = activeContact.displayName || activeContact.handle;
+        state.isGroup = activeContact.isGroup || activeContact.handle.startsWith('#');
         state.groupMembers = activeContact.members || [];
-        state.activeTargetFP = activeContact.fp || '';
+        state.activeTargetFP = activeContact.fingerprint || '';
         state.activeTargetPK = activeContact.publicKey || '';
+
+        activeStatusTextEl.textContent = state.isGroup 
+            ? `${(state.groupMembers.length > 0 ? state.groupMembers.length : 1)} Members · End-to-end verified` 
+            : 'Online · End-to-end verified';
+    } else if (state.activeTarget) {
+        const initials = getInitials(state.activeTarget);
+        activeHeaderAvatarEl.textContent = initials;
+        activeContactTitleEl.textContent = state.activeTarget;
+        state.isGroup = state.activeTarget.startsWith('#');
+        activeStatusTextEl.textContent = 'Online · End-to-end verified';
     } else {
         activeHeaderAvatarEl.textContent = '—';
         activeContactTitleEl.textContent = 'No Active Chat';
@@ -344,41 +374,44 @@ function cycleMessageTTL() {
 
 function selectContact(handle) {
     state.activeTarget = handle;
-    state.customMsgTTL = 0; // reset to inherit main time
-    savePersistedData();
+    state.customMsgTTL = 0;
     renderCorrespondenceSidebar();
     renderActiveConversation();
-    chatInputEl.focus();
+    if (chatInputEl) chatInputEl.focus();
 }
 
-function touchContact(handle, lastMsgText, timestamp, senderName, fp, pk, type, members) {
-    if (!handle || typeof handle !== 'string' || !handle.trim()) return;
-    handle = handle.trim();
-    const displayName = (senderName && typeof senderName === 'string' && senderName.trim()) ? senderName.trim() : handle;
+// Case-Insensitive Touch Contact with Deduplication
+function touchContact(rawHandle, lastMsgText, timestamp, rawDisplayName = '', isGroup = false, groupMembers = [], fp = '', pk = '') {
+    if (!rawHandle || typeof rawHandle !== 'string' || !rawHandle.trim()) return;
+    const handle = rawHandle.trim();
+    const displayName = (rawDisplayName && typeof rawDisplayName === 'string' && rawDisplayName.trim()) ? rawDisplayName.trim() : handle;
+    const norm = handle.toLowerCase();
 
-    let contact = state.contacts.find(c => c.handle === handle);
+    let contact = state.contacts.find(c => c.handle.toLowerCase() === norm);
     if (!contact) {
         contact = {
             handle: handle,
-            name: displayName,
-            fp: fp || 'Verified',
+            displayName: displayName,
+            fingerprint: fp || 'Verified',
             publicKey: pk || '',
-            type: type || (handle.includes(',') ? 'group' : 'dm'),
-            members: members || [],
-            lastMessage: lastMsgText,
-            time: timestamp
+            isGroup: isGroup || handle.startsWith('#'),
+            members: groupMembers || [],
+            lastMessage: lastMsgText || '',
+            lastTime: timestamp || formatTime(new Date())
         };
         state.contacts.unshift(contact);
     } else {
-        contact.lastMessage = lastMsgText;
-        contact.time = timestamp;
-        if (displayName) contact.name = displayName;
-        if (fp) contact.fp = fp;
+        contact.lastMessage = lastMsgText || contact.lastMessage;
+        contact.lastTime = timestamp || contact.lastTime;
+        if (displayName) contact.displayName = displayName;
+        if (groupMembers && groupMembers.length > 0) contact.members = groupMembers;
+        if (fp) contact.fingerprint = fp;
         if (pk) contact.publicKey = pk;
-        state.contacts = [contact, ...state.contacts.filter(c => c.handle !== handle)];
+        state.contacts = [contact, ...state.contacts.filter(c => c.handle.toLowerCase() !== norm)];
     }
-    savePersistedData();
+
     renderCorrespondenceSidebar();
+    syncServerSession();
 }
 
 // 3. Connect to SSE Stream Bridge
@@ -393,16 +426,24 @@ function connectSSEStream() {
 
     state.eventSource.onopen = () => {
         state.serverConnected = true;
-        headerConnStatusEl.textContent = 'Connected';
+        if (headerConnStatusEl) headerConnStatusEl.textContent = 'Connected';
     };
 
     state.eventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data && data.text) {
+            if (data && (data.text || data.isFile)) {
+                // Deduplicate incoming stream messages
+                if (data.id && seenMessageIDs.has(data.id)) {
+                    return;
+                }
+                if (data.id) seenMessageIDs.add(data.id);
+
+                const isGroup = !!(data.isGroup || (data.group && data.group.startsWith('#')));
+                const targetKey = isGroup ? data.group : (data.sender || state.activeTarget);
                 const senderName = data.sender || state.activeTarget;
                 const timestamp = data.timestamp || formatTime(new Date());
-                const msgTTL = data.ttl || getMainTTL(senderName);
+                const msgTTL = data.ttl || getMainTTL(targetKey);
 
                 let isFile = false;
                 let fileName = '';
@@ -426,9 +467,11 @@ function connectSSEStream() {
                 } catch (e) {}
 
                 const msg = {
-                    id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    id: data.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
                     sender: senderName,
                     text: previewText,
+                    isGroup: isGroup,
+                    groupRoom: isGroup ? targetKey : '',
                     isFile: isFile,
                     fileName: fileName,
                     fileSize: fileSize,
@@ -437,19 +480,19 @@ function connectSSEStream() {
                     timestamp: timestamp,
                     ttl: msgTTL,
                     expiresAt: Date.now() + msgTTL * 1000,
-                    isOutgoing: false
+                    isOutgoing: senderName.toLowerCase() === state.myHandle.toLowerCase()
                 };
 
-                if (!state.conversations[senderName]) {
-                    state.conversations[senderName] = [];
+                if (!state.conversations[targetKey]) {
+                    state.conversations[targetKey] = [];
                 }
-                state.conversations[senderName].push(msg);
+                state.conversations[targetKey].push(msg);
 
-                touchContact(senderName, previewText, timestamp, senderName);
+                touchContact(targetKey, previewText, timestamp, targetKey, isGroup);
 
                 if (!state.activeTarget) {
-                    selectContact(senderName);
-                } else if (senderName === state.activeTarget || (state.isGroup && senderName !== state.myHandle)) {
+                    selectContact(targetKey);
+                } else if (targetKey.toLowerCase() === state.activeTarget.toLowerCase()) {
                     appendBubble(msg);
                 }
             }
@@ -460,7 +503,7 @@ function connectSSEStream() {
 
     state.eventSource.onerror = () => {
         state.serverConnected = false;
-        headerConnStatusEl.textContent = 'Reconnecting...';
+        if (headerConnStatusEl) headerConnStatusEl.textContent = 'Reconnecting...';
     };
 }
 
@@ -470,7 +513,7 @@ function renderActiveConversation() {
         chatMessagesContainerEl.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding-top: 120px; text-align:center; color:#64748b;">
                 <h3 style="font-size:1.4rem; color:var(--pv-text-main); margin-bottom:8px; font-weight:700;">Pandora's Veil</h3>
-                <p style="font-size:0.9rem; max-width:360px; line-height:1.5;">Zero-knowledge cryptographic relay. Start a new chat or group to begin.</p>
+                <p style="font-size:0.9rem; max-width:360px; line-height:1.5;">Zero-knowledge cryptographic relay. Start a new chat or join a group to begin.</p>
             </div>
         `;
         return;
@@ -487,7 +530,7 @@ function renderActiveConversation() {
     scrollChatToBottom();
 }
 
-// 5. Append Message Bubble
+// 5. Append Message Bubble (With Group Sender Identification)
 function appendBubble(msg) {
     // Auto-detect JSON file payloads in msg.text if not already flagged
     if (!msg.isFile && typeof msg.text === 'string' && (msg.text.includes('"__pv_file"') || msg.text.includes('"is_file"'))) {
@@ -506,6 +549,14 @@ function appendBubble(msg) {
     const groupEl = document.createElement('div');
     groupEl.id = msg.id || ('msg_' + Date.now());
     groupEl.className = `pv-bubble-group ${msg.isOutgoing ? 'outgoing' : 'incoming'}`;
+
+    // Sender Tag in Group Chats
+    if (state.isGroup && !msg.isOutgoing && msg.sender) {
+        const senderTag = document.createElement('div');
+        senderTag.className = 'pv-group-sender-tag';
+        senderTag.textContent = msg.sender;
+        groupEl.appendChild(senderTag);
+    }
 
     if (msg.isFile) {
         const isImage = (msg.fileType && msg.fileType.startsWith('image/')) ||
@@ -536,12 +587,12 @@ function appendBubble(msg) {
 
             fileCard.innerHTML = `
                 <div style="width:100%; max-height:220px; overflow:hidden; border-radius:10px; margin-bottom:8px; background:#07120e; display:flex; align-items:center; justify-content:center;">
-                    <img src="${srcUrl}" alt="${msg.fileName || 'image'}" onerror="this.parentElement.style.display='none';" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:8px; display:block;">
+                    <img src="${srcUrl}" alt="${escapeHTML(msg.fileName || 'image')}" onerror="this.parentElement.style.display='none';" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:8px; display:block;">
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
                     <div class="pv-file-meta" style="flex:1; overflow:hidden;">
-                        <div class="pv-file-name" style="font-size:0.86rem;">${msg.fileName || 'image.jpeg'}</div>
-                        <div class="pv-file-size" style="font-size:0.74rem;">${msg.fileSize || 'Image file'}</div>
+                        <div class="pv-file-name" style="font-size:0.86rem;">${escapeHTML(msg.fileName || 'image.jpeg')}</div>
+                        <div class="pv-file-size" style="font-size:0.74rem;">${escapeHTML(msg.fileSize || 'Image file')}</div>
                     </div>
                     <div class="pv-file-status" style="font-weight:700; color:var(--pv-emerald-light); font-size:0.8rem; flex-shrink:0;">⬇ Download</div>
                 </div>
@@ -552,8 +603,8 @@ function appendBubble(msg) {
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                 </div>
                 <div class="pv-file-meta">
-                    <div class="pv-file-name">${msg.fileName || 'file'}</div>
-                    <div class="pv-file-size">${msg.fileSize || 'Attachment'}</div>
+                    <div class="pv-file-name">${escapeHTML(msg.fileName || 'file')}</div>
+                    <div class="pv-file-size">${escapeHTML(msg.fileSize || 'Attachment')}</div>
                     <div class="pv-file-status">${srcUrl ? '⬇ Click to download' : '✓ Transmitted'}</div>
                 </div>
             `;
@@ -594,7 +645,9 @@ function appendBubble(msg) {
 }
 
 function scrollChatToBottom() {
-    chatMessagesScrollEl.scrollTop = chatMessagesScrollEl.scrollHeight;
+    if (chatMessagesScrollEl) {
+        chatMessagesScrollEl.scrollTop = chatMessagesScrollEl.scrollHeight;
+    }
 }
 
 // 6. Send Message
@@ -604,14 +657,13 @@ async function handleSendMessage(e) {
     if (!text) return;
 
     if (!state.activeTarget) {
-        openNewChatModal('peer');
+        openNewChatModal();
         return;
     }
 
     chatInputEl.value = '';
 
     const timestamp = formatTime(new Date());
-    // Use custom independent message TTL if set (> 0), otherwise use main conversation TTL
     const effectiveTTL = state.customMsgTTL > 0 ? state.customMsgTTL : getMainTTL(state.activeTarget);
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
@@ -619,11 +671,15 @@ async function handleSendMessage(e) {
         id: msgId,
         sender: state.myHandle,
         text: text,
+        isGroup: state.isGroup,
+        groupRoom: state.isGroup ? state.activeTarget : '',
         timestamp: timestamp,
         ttl: effectiveTTL,
         expiresAt: Date.now() + effectiveTTL * 1000,
         isOutgoing: true
     };
+
+    seenMessageIDs.add(msgId);
 
     if (!state.conversations[state.activeTarget]) {
         state.conversations[state.activeTarget] = [];
@@ -631,7 +687,7 @@ async function handleSendMessage(e) {
     state.conversations[state.activeTarget].push(msg);
     appendBubble(msg);
 
-    touchContact(state.activeTarget, text, timestamp);
+    touchContact(state.activeTarget, text, timestamp, state.activeTarget, state.isGroup, state.groupMembers);
 
     try {
         const token = getAuthToken();
@@ -712,13 +768,18 @@ async function handleFileSelected(event) {
             isFile: true,
             fileName: file.name,
             fileSize: formatBytes(file.size),
+            fileType: file.type || 'application/octet-stream',
             fileData: base64Data,
             text: `📎 ${file.name}`,
+            isGroup: state.isGroup,
+            groupRoom: state.isGroup ? state.activeTarget : '',
             timestamp: timestamp,
             ttl: effectiveTTL,
             expiresAt: Date.now() + effectiveTTL * 1000,
             isOutgoing: true
         };
+
+        seenMessageIDs.add(msgId);
 
         if (!state.conversations[state.activeTarget]) {
             state.conversations[state.activeTarget] = [];
@@ -726,7 +787,7 @@ async function handleFileSelected(event) {
         state.conversations[state.activeTarget].push(msg);
         appendBubble(msg);
 
-        touchContact(state.activeTarget, `📎 ${file.name}`, timestamp);
+        touchContact(state.activeTarget, `📎 ${file.name}`, timestamp, state.activeTarget, state.isGroup, state.groupMembers);
 
         try {
             const token = getAuthToken();
@@ -792,47 +853,129 @@ function startExpirationPruner() {
         });
 
         if (changed) {
-            savePersistedData();
+            syncServerSession();
         }
     }, 1000);
 }
 
-// 8. Options Menu Dropdown
-function toggleOptionsMenu(e) {
-    e.stopPropagation();
-    if (optionsDropdownEl) {
-        optionsDropdownEl.classList.toggle('hidden');
-    }
-}
-
-document.addEventListener('click', () => {
-    if (optionsDropdownEl && !optionsDropdownEl.classList.contains('hidden')) {
-        optionsDropdownEl.classList.add('hidden');
-    }
-});
-
-// 9. Setup Event Listeners
+// 8. Setup Event Listeners
 function setupEventListeners() {
-    messageFormEl.addEventListener('submit', handleSendMessage);
+    if (messageFormEl) {
+        messageFormEl.addEventListener('submit', handleSendMessage);
+    }
 }
 
-// 10. Modals & Actions
+// 9. Modals & Actions
 
-// Profile Modal (Matches `pv identity` format + Delete Account option)
+// Modal Helpers
+function openModal(title, bodyHTML) {
+    if (modalTitleEl) modalTitleEl.textContent = title;
+    if (modalBodyEl) modalBodyEl.innerHTML = bodyHTML;
+    if (modalBackdropEl) modalBackdropEl.classList.remove('hidden');
+}
+
+function closeModal() {
+    if (modalBackdropEl) modalBackdropEl.classList.add('hidden');
+}
+
+function handleBackdropClick(e) {
+    if (e.target === modalBackdropEl) {
+        closeModal();
+    }
+}
+
+// Change Handle Modal
+function openChangeHandleModal() {
+    openModal('Change Device Handle', `
+        <form onsubmit="event.preventDefault(); submitChangeHandle();" style="display:flex; flex-direction:column; gap:14px;">
+            <p style="font-size:0.86rem; color:#94a3b8; line-height:1.4;">
+                Update your identity handle. Your cryptographic keys will be preserved and registered under your new handle on the cloud relay.
+            </p>
+            <input type="text" id="change-handle-input" value="${escapeHTML(state.myHandle)}" placeholder="New Handle (e.g. Ujwal)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
+            <div id="change-handle-error" class="pv-error-box hidden"></div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="pv-mini-change-btn" style="padding:8px 16px; font-size:0.88rem;" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="pv-init-btn" style="height:40px; padding:0 20px; font-size:0.88rem;" id="change-handle-submit-btn">Update Handle</button>
+            </div>
+        </form>
+    `);
+    setTimeout(() => {
+        const inp = document.getElementById('change-handle-input');
+        if (inp) inp.focus();
+    }, 100);
+}
+
+async function submitChangeHandle() {
+    const input = document.getElementById('change-handle-input');
+    const errEl = document.getElementById('change-handle-error');
+    const btn = document.getElementById('change-handle-submit-btn');
+
+    if (!input || !input.value.trim()) return;
+    const newHandle = input.value.trim();
+
+    if (newHandle.toLowerCase() === state.myHandle.toLowerCase()) {
+        closeModal();
+        return;
+    }
+
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
+
+    try {
+        const token = getAuthToken();
+        const res = await fetch('/api/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Pandora-Token': token
+            },
+            body: JSON.stringify({ handle: newHandle })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            state.myHandle = data.handle;
+            state.myFingerprint = data.fingerprint;
+            state.myPublicKey = data.publicKey;
+
+            if (myHandleLabelEl) myHandleLabelEl.textContent = state.myHandle;
+            if (myFingerprintEl) myFingerprintEl.textContent = state.myFingerprint;
+
+            syncServerSession();
+            closeModal();
+        } else {
+            errEl.textContent = data.error || 'Failed to update handle on relay.';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Update Handle';
+        }
+    } catch (err) {
+        errEl.textContent = `Network error: ${err.message}`;
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Update Handle';
+    }
+}
+
+// Profile Modal
 function toggleProfileModal() {
     openModal('Device Identity (Verified on Relay)', `
         <div style="display:flex; flex-direction:column; gap:12px; font-size:0.88rem;">
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Handle</div>
-                <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${state.myHandle}</div>
+                <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932; display:flex; justify-content:space-between; align-items:center;">
+                    <span>${escapeHTML(state.myHandle)}</span>
+                    <button type="button" class="pv-mini-change-btn" onclick="openChangeHandleModal()">Edit</button>
+                </div>
             </div>
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Device Fingerprint</div>
-                <div style="font-family:var(--pv-font-mono); color:#34d399; font-weight:600; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${state.myFingerprint}</div>
+                <div style="font-family:var(--pv-font-mono); color:#34d399; font-weight:600; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${escapeHTML(state.myFingerprint)}</div>
             </div>
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Public Key (X25519)</div>
-                <div style="font-family:var(--pv-font-mono); font-size:0.78rem; color:#94a3b8; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932; word-break:break-all;">${state.myPublicKey}</div>
+                <div style="font-family:var(--pv-font-mono); font-size:0.78rem; color:#94a3b8; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932; word-break:break-all;">${escapeHTML(state.myPublicKey)}</div>
             </div>
         </div>
         <div style="display:flex; justify-content:flex-end; margin-top:20px; padding-top:14px; border-top:1px solid #202932;">
@@ -856,29 +999,28 @@ async function confirmDeleteAccount() {
         console.warn('Delete request failed:', e);
     }
 
-    localStorage.clear();
     location.reload();
 }
 
 // Peer Contact Details Modal
 function openContactDetailsModal() {
     if (!state.activeTarget) return;
-    const contact = state.contacts.find(c => c.handle === state.activeTarget);
-    const displayName = contact ? (contact.name || contact.handle) : state.activeTarget;
-    const fp = contact ? (contact.fp || state.activeTargetFP || 'Verified') : 'Verified';
+    const contact = state.contacts.find(c => c.handle.toLowerCase() === state.activeTarget.toLowerCase());
+    const displayName = contact ? (contact.displayName || contact.handle) : state.activeTarget;
+    const fp = contact ? (contact.fingerprint || state.activeTargetFP || 'Verified') : 'Verified';
     const pk = contact ? (contact.publicKey || state.activeTargetPK || 'Verified on Relay') : 'Verified on Relay';
 
-    if (contact && contact.type === 'group') {
-        const memberList = (contact.members || []).map(m => `<li style="padding:4px 0;"><code>${m}</code></li>`).join('');
+    if (contact && (contact.isGroup || contact.handle.startsWith('#'))) {
+        const memberList = (contact.members || []).map(m => `<li style="padding:4px 0;"><code>${escapeHTML(m)}</code></li>`).join('');
         openModal(`Group: ${displayName}`, `
             <div style="display:flex; flex-direction:column; gap:12px; font-size:0.88rem;">
                 <div>
                     <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Group Name</div>
-                    <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${displayName}</div>
+                    <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${escapeHTML(displayName)}</div>
                 </div>
                 <div>
-                    <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Members (${contact.members.length})</div>
-                    <ul style="margin:4px 0 0 18px; font-size:0.88rem; color:#94a3b8;">${memberList}</ul>
+                    <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Members (${contact.members ? contact.members.length : 0})</div>
+                    <ul style="margin:4px 0 0 18px; font-size:0.88rem; color:#94a3b8;">${memberList || '<li>No members recorded</li>'}</ul>
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top:20px;">
@@ -892,15 +1034,15 @@ function openContactDetailsModal() {
         <div style="display:flex; flex-direction:column; gap:12px; font-size:0.88rem;">
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Handle</div>
-                <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${state.activeTarget}</div>
+                <div style="font-family:var(--pv-font-mono); color:#f8fafc; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${escapeHTML(state.activeTarget)}</div>
             </div>
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Device Fingerprint</div>
-                <div style="font-family:var(--pv-font-mono); color:#34d399; font-weight:600; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${fp}</div>
+                <div style="font-family:var(--pv-font-mono); color:#34d399; font-weight:600; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932;">${escapeHTML(fp)}</div>
             </div>
             <div>
                 <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Public Key</div>
-                <div style="font-family:var(--pv-font-mono); font-size:0.78rem; color:#94a3b8; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932; word-break:break-all;">${pk}</div>
+                <div style="font-family:var(--pv-font-mono); font-size:0.78rem; color:#94a3b8; background:#141a20; padding:8px 12px; border-radius:8px; border:1px solid #202932; word-break:break-all;">${escapeHTML(pk)}</div>
             </div>
         </div>
         <div style="display:flex; justify-content:flex-end; margin-top:20px;">
@@ -910,15 +1052,16 @@ function openContactDetailsModal() {
 }
 
 function removeCorrespondence(handle) {
-    state.contacts = state.contacts.filter(c => c.handle !== handle);
+    const norm = handle.toLowerCase();
+    state.contacts = state.contacts.filter(c => c.handle.toLowerCase() !== norm);
     delete state.conversations[handle];
     delete state.convTTL[handle];
 
-    if (state.activeTarget === handle) {
+    if (state.activeTarget.toLowerCase() === norm) {
         state.activeTarget = state.contacts.length > 0 ? state.contacts[0].handle : '';
     }
 
-    savePersistedData();
+    syncServerSession();
     closeModal();
     renderCorrespondenceSidebar();
     renderActiveConversation();
@@ -928,7 +1071,7 @@ function removeCorrespondence(handle) {
 function openNewChatModal() {
     openModal('New Chat', `
         <form onsubmit="event.preventDefault(); startNewPeerFromModal();" style="display:flex; flex-direction:column; gap:14px;">
-            <input type="text" id="new-peer-handle-input" placeholder="Peer handle (e.g. marcus or alex)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
+            <input type="text" id="new-peer-handle-input" placeholder="Peer handle (e.g. Ujwal, Bob, Alice)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
             <div id="new-peer-error" class="pv-error-box hidden"></div>
             <div style="display:flex; justify-content:flex-end; margin-top:4px;">
                 <button type="submit" class="pv-init-btn" style="height:42px; padding:0 22px;" id="add-peer-submit-btn">Start Chat</button>
@@ -941,24 +1084,6 @@ function openNewChatModal() {
     }, 100);
 }
 
-// Add New Group Modal
-function openNewGroupModal() {
-    openModal('New Group', `
-        <form onsubmit="event.preventDefault(); createGroupFromModal();" style="display:flex; flex-direction:column; gap:14px;">
-            <input type="text" id="new-group-name-input" placeholder="Group Name (e.g. core-devs)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
-            <input type="text" id="new-group-members-input" placeholder="Members (e.g. marcus, alex)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;">
-            <div id="new-group-error" class="pv-error-box hidden"></div>
-            <div style="display:flex; justify-content:flex-end; margin-top:4px;">
-                <button type="submit" class="pv-init-btn" style="height:42px; padding:0 22px;" id="add-group-submit-btn">Create Group</button>
-            </div>
-        </form>
-    `);
-    setTimeout(() => {
-        const inp = document.getElementById('new-group-name-input');
-        if (inp) inp.focus();
-    }, 100);
-}
-
 async function startNewPeerFromModal() {
     const input = document.getElementById('new-peer-handle-input');
     const errEl = document.getElementById('new-peer-error');
@@ -967,7 +1092,7 @@ async function startNewPeerFromModal() {
     if (!input || !input.value.trim()) return;
     const handle = input.value.trim();
 
-    if (handle.toUpperCase() === state.myHandle.toUpperCase()) {
+    if (handle.toLowerCase() === state.myHandle.toLowerCase()) {
         errEl.textContent = 'Cannot add yourself as a peer.';
         errEl.classList.remove('hidden');
         return;
@@ -986,7 +1111,7 @@ async function startNewPeerFromModal() {
 
         if (res.ok && data.publicKey) {
             const peerHandle = (data.handle && data.handle.trim()) ? data.handle.trim() : handle;
-            touchContact(peerHandle, 'Connected', formatTime(new Date()), peerHandle, data.fingerprint, data.publicKey, 'dm');
+            touchContact(peerHandle, 'Connected', formatTime(new Date()), peerHandle, false, [], data.fingerprint, data.publicKey);
             selectContact(peerHandle);
             closeModal();
         } else {
@@ -1003,68 +1128,202 @@ async function startNewPeerFromModal() {
     }
 }
 
-async function createGroupFromModal() {
-    const nameInput = document.getElementById('new-group-name-input');
-    const membersInput = document.getElementById('new-group-members-input');
-    const errEl = document.getElementById('new-group-error');
-    const btn = document.getElementById('add-group-submit-btn');
+// Join Group Modal
+function openJoinGroupModal() {
+    openModal('Join Group Room', `
+        <form onsubmit="event.preventDefault(); submitJoinGroup();" style="display:flex; flex-direction:column; gap:14px;">
+            <p style="font-size:0.86rem; color:#94a3b8; line-height:1.4;">
+                Enter the name of an encrypted group room.
+            </p>
+            <input type="text" id="join-group-name-input" placeholder="Group Room (e.g. #Security-Team)" style="width:100%; height:46px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:12px; padding:0 16px; font-size:0.92rem; outline:none;" autofocus>
+            <div id="join-group-error" class="pv-error-box hidden"></div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="pv-mini-change-btn" style="padding:8px 16px; font-size:0.88rem;" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="pv-init-btn" style="height:40px; padding:0 22px; font-size:0.88rem;" id="join-group-submit-btn">Join Room</button>
+            </div>
+        </form>
+    `);
+    setTimeout(() => {
+        const inp = document.getElementById('join-group-name-input');
+        if (inp) inp.focus();
+    }, 100);
+}
 
-    if (!nameInput || !nameInput.value.trim() || !membersInput || !membersInput.value.trim()) {
-        errEl.textContent = 'Please provide a group name and member handles.';
-        errEl.classList.remove('hidden');
+function submitJoinGroup() {
+    const input = document.getElementById('join-group-name-input');
+    const errEl = document.getElementById('join-group-error');
+
+    if (!input || !input.value.trim()) return;
+    let groupName = input.value.trim();
+    if (!groupName.startsWith('#')) groupName = '#' + groupName;
+
+    touchContact(groupName, 'Joined group room', formatTime(new Date()), groupName, true, []);
+    selectContact(groupName);
+    closeModal();
+}
+
+// Interactive New Group Modal with Contact Multi-select & Search Lookup
+let selectedGroupMembers = [];
+
+function openNewGroupModal() {
+    selectedGroupMembers = [];
+    const directContacts = state.contacts.filter(c => !c.isGroup && !c.handle.startsWith('#'));
+
+    let contactsHTML = '';
+    if (directContacts.length > 0) {
+        contactsHTML = directContacts.map(c => `
+            <label class="pv-contact-checkbox-item">
+                <input type="checkbox" value="${escapeHTML(c.handle)}" onchange="toggleGroupMemberSelection('${escapeHTML(c.handle)}', this.checked)">
+                <span>${escapeHTML(c.displayName || c.handle)}</span>
+            </label>
+        `).join('');
+    } else {
+        contactsHTML = '<div style="font-size:0.8rem; color:#64748b; padding:4px;">No direct contacts yet</div>';
+    }
+
+    openModal('Create New Group', `
+        <form onsubmit="event.preventDefault(); submitCreateGroupModal();" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+                <label style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Group Name</label>
+                <input type="text" id="new-group-name-input" placeholder="e.g. #Alpha_Team" style="width:100%; height:44px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:10px; padding:0 14px; font-size:0.9rem; outline:none;" autofocus>
+            </div>
+
+            <div>
+                <label style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Selected Members</label>
+                <div class="pv-chips-container" id="group-member-chips">
+                    <span style="font-size:0.8rem; color:#64748b;">(No members added yet)</span>
+                </div>
+            </div>
+
+            <div>
+                <label style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Select from Contacts</label>
+                <div class="pv-contacts-picker-box">
+                    ${contactsHTML}
+                </div>
+            </div>
+
+            <div>
+                <label style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Search & Add New Member</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="group-member-search-input" placeholder="Enter username to search on server..." style="flex:1; height:38px; background:#11161c; border:1px solid #1e2630; color:#f8fafc; border-radius:8px; padding:0 12px; font-size:0.86rem; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchGroupMember();}">
+                    <button type="button" class="pv-mini-change-btn" style="padding:0 14px; font-size:0.82rem;" onclick="searchGroupMember()">Search</button>
+                </div>
+                <div id="group-member-search-result"></div>
+            </div>
+
+            <div id="new-group-error" class="pv-error-box hidden"></div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="pv-mini-change-btn" style="padding:8px 16px; font-size:0.88rem;" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="pv-init-btn" style="height:40px; padding:0 22px; font-size:0.88rem;" id="add-group-submit-btn">Create Group</button>
+            </div>
+        </form>
+    `);
+
+    setTimeout(() => {
+        const inp = document.getElementById('new-group-name-input');
+        if (inp) inp.focus();
+    }, 100);
+}
+
+function updateGroupMemberChips() {
+    const container = document.getElementById('group-member-chips');
+    if (!container) return;
+
+    if (selectedGroupMembers.length === 0) {
+        container.innerHTML = '<span style="font-size:0.8rem; color:#64748b;">(No members added yet)</span>';
         return;
     }
 
-    const groupName = nameInput.value.trim();
-    const rawMembers = membersInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    container.innerHTML = selectedGroupMembers.map(m => `
+        <span class="pv-member-chip">
+            <span>${escapeHTML(m)}</span>
+            <span class="pv-chip-remove" onclick="removeGroupMemberChip('${escapeHTML(m)}')">×</span>
+        </span>
+    `).join('');
+}
 
-    if (rawMembers.length === 0) {
-        errEl.textContent = 'Provide at least one peer member.';
-        errEl.classList.remove('hidden');
+function toggleGroupMemberSelection(handle, checked) {
+    if (checked) {
+        if (!selectedGroupMembers.some(m => m.toLowerCase() === handle.toLowerCase())) {
+            selectedGroupMembers.push(handle);
+        }
+    } else {
+        selectedGroupMembers = selectedGroupMembers.filter(m => m.toLowerCase() !== handle.toLowerCase());
+    }
+    updateGroupMemberChips();
+}
+
+function removeGroupMemberChip(handle) {
+    selectedGroupMembers = selectedGroupMembers.filter(m => m.toLowerCase() !== handle.toLowerCase());
+    updateGroupMemberChips();
+    const chk = document.querySelector(`.pv-contacts-picker-box input[value="${handle}"]`);
+    if (chk) chk.checked = false;
+}
+
+async function searchGroupMember() {
+    const input = document.getElementById('group-member-search-input');
+    const resultBox = document.getElementById('group-member-search-result');
+    if (!input || !input.value.trim() || !resultBox) return;
+
+    const query = input.value.trim();
+    if (query.toLowerCase() === state.myHandle.toLowerCase()) {
+        resultBox.innerHTML = '<div style="font-size:0.8rem; color:#f59e0b; margin-top:6px;">You are already in the group as creator.</div>';
         return;
     }
 
-    errEl.classList.add('hidden');
-    btn.disabled = true;
-    btn.textContent = 'Verifying...';
-
-    const verifiedMembers = [];
-    const token = getAuthToken();
+    resultBox.innerHTML = '<div style="font-size:0.8rem; color:#64748b; margin-top:6px;">Searching server...</div>';
 
     try {
-        for (const member of rawMembers) {
-            if (member.toUpperCase() === state.myHandle.toUpperCase()) continue;
-            const res = await fetch(`/api/lookup?handle=${encodeURIComponent(member)}`, {
-                headers: { 'X-Pandora-Token': token }
-            });
-            const data = await res.json();
-            if (!res.ok || !data.publicKey) {
-                errEl.textContent = `Member '${member}' does not exist on relay server. Ensure all members have initialized.`;
-                errEl.classList.remove('hidden');
-                btn.disabled = false;
-                btn.textContent = 'Create Group';
-                return;
-            }
-            verifiedMembers.push(data.handle);
-        }
+        const token = getAuthToken();
+        const res = await fetch(`/api/lookup?handle=${encodeURIComponent(query)}`, {
+            headers: { 'X-Pandora-Token': token }
+        });
+        const data = await res.json();
 
-        if (verifiedMembers.length === 0) {
-            errEl.textContent = 'No valid peer members found.';
-            errEl.classList.remove('hidden');
-            btn.disabled = false;
-            btn.textContent = 'Create Group';
-            return;
+        if (res.ok && data.publicKey) {
+            const foundHandle = data.handle || query;
+            resultBox.innerHTML = `
+                <div class="pv-search-result-card">
+                    <div class="pv-search-result-info">
+                        <div class="pv-search-result-name">${escapeHTML(foundHandle)}</div>
+                        <div class="pv-search-result-fp">FP: ${escapeHTML(data.fingerprint || 'Verified')}</div>
+                    </div>
+                    <button type="button" class="pv-add-member-btn" onclick="addFoundMemberToGroup('${escapeHTML(foundHandle)}')">+ Add</button>
+                </div>
+            `;
+        } else {
+            resultBox.innerHTML = `<div style="font-size:0.8rem; color:#ef4444; margin-top:6px;">${escapeHTML(data.error || `User '${query}' not found on server.`)}</div>`;
         }
-
-        touchContact(groupName, 'Group Created', formatTime(new Date()), groupName, 'Group', '', 'group', verifiedMembers);
-        selectContact(groupName);
-        closeModal();
-    } catch (err) {
-        errEl.textContent = `Error verifying members: ${err.message}`;
-        errEl.classList.remove('hidden');
-        btn.disabled = false;
-        btn.textContent = 'Create Group';
+    } catch (e) {
+        resultBox.innerHTML = `<div style="font-size:0.8rem; color:#ef4444; margin-top:6px;">Lookup error: ${escapeHTML(e.message)}</div>`;
     }
+}
+
+function addFoundMemberToGroup(handle) {
+    if (!selectedGroupMembers.some(m => m.toLowerCase() === handle.toLowerCase())) {
+        selectedGroupMembers.push(handle);
+        updateGroupMemberChips();
+    }
+    const resultBox = document.getElementById('group-member-search-result');
+    if (resultBox) resultBox.innerHTML = `<div style="font-size:0.8rem; color:#10b981; margin-top:6px;">Added ${escapeHTML(handle)} to group.</div>`;
+}
+
+function submitCreateGroupModal() {
+    const nameInput = document.getElementById('new-group-name-input');
+    const errEl = document.getElementById('new-group-error');
+
+    if (!nameInput || !nameInput.value.trim()) {
+        errEl.textContent = 'Please enter a group name.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    let groupName = nameInput.value.trim();
+    if (!groupName.startsWith('#')) groupName = '#' + groupName;
+
+    touchContact(groupName, 'Group Created', formatTime(new Date()), groupName, true, selectedGroupMembers);
+    selectContact(groupName);
+    closeModal();
 }
 
 // Disappearing Messages Modal
@@ -1100,101 +1359,20 @@ function applyConversationTTLFromModal() {
         if (state.activeTarget) {
             state.convTTL[state.activeTarget] = val;
         }
-        state.customMsgTTL = 0; // reset message-specific override to match the newly applied main time
-
-        // update top main TTL label
+        state.customMsgTTL = val;
         if (topMainTtlLabelEl) {
             topMainTtlLabelEl.textContent = `${formatTTL(val)} Lifespan`;
         }
-
-        savePersistedData();
-        renderCorrespondenceSidebar();
         updateMsgTTLBadge();
-        closeModal();
+        syncServerSession();
     }
+    closeModal();
 }
 
-// Deposit Secret Modal
-function openSecretDepositModal() {
-    if (!state.activeTarget) {
-        openNewChatModal('peer');
-        return;
+// 10. Lifecycle Boot
+document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+    if (initOverlayEl) {
+        initOverlayEl.addEventListener('submit', handleInitSubmit);
     }
-    const currentTTL = getMainTTL(state.activeTarget);
-
-    openModal('Deposit Confidential Secret', `
-        <div style="display:flex; flex-direction:column; gap:14px;">
-            <p style="color:#94a3b8; font-size:0.88rem;">Enter confidential secret (destroyed upon first read):</p>
-            <textarea id="secret-deposit-textarea" rows="4" placeholder="Confidential payload..." style="width:100%; padding:12px 14px; background:#141a20; border:1px solid #202932; color:#f8fafc; border-radius:10px; font-family:var(--pv-font-mono); font-size:0.88rem; outline:none;"></textarea>
-            <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                <button type="button" class="pv-init-btn" style="height:38px; padding:0 18px;" onclick="submitSecretDepositFromModal()">Deposit</button>
-            </div>
-        </div>
-    `);
-}
-
-async function submitSecretDepositFromModal() {
-    const textarea = document.getElementById('secret-deposit-textarea');
-    if (textarea && textarea.value.trim()) {
-        const secret = textarea.value.trim();
-        const currentTTL = state.customMsgTTL > 0 ? state.customMsgTTL : getMainTTL(state.activeTarget);
-        closeModal();
-        try {
-            const token = getAuthToken();
-            const res = await fetch('/api/deposit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Pandora-Token': token
-                },
-                body: JSON.stringify({
-                    recipient: state.activeTarget,
-                    secret: secret,
-                    ttl: currentTTL
-                })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                appendBubble({
-                    id: 'deposit_' + Date.now(),
-                    sender: state.myHandle,
-                    text: `[Self-Destructing Deposit Created] ID: ${data.id}`,
-                    timestamp: formatTime(new Date()),
-                    ttl: currentTTL,
-                    expiresAt: Date.now() + currentTTL * 1000,
-                    isOutgoing: true
-                });
-            } else {
-                alert('Failed to deposit secret.');
-            }
-        } catch (err) {
-            alert(`Deposit failed: ${err.message}`);
-        }
-    }
-}
-
-function openModal(title, htmlContent) {
-    modalTitleEl.textContent = title;
-    modalBodyEl.innerHTML = htmlContent;
-    modalBackdropEl.classList.remove('hidden');
-}
-
-function closeModal() {
-    modalBackdropEl.classList.add('hidden');
-    chatInputEl.focus();
-}
-
-function handleBackdropClick(e) {
-    if (e.target === modalBackdropEl) {
-        closeModal();
-    }
-}
-
-function formatTime(d) {
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// Start Application
-document.addEventListener('DOMContentLoaded', initApp);
+});

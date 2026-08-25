@@ -39,7 +39,7 @@
         <div class="pv-main-columns">
             <!-- Left Sidebar Blocks -->
             <aside class="pv-sidebar-column">
-                <!-- Block 1: New Chat & New Group Actions Block -->
+                <!-- Block 1: New Chat, New Group & Join Group Actions Block -->
                 <div class="pv-block pv-block-actions">
                     <button type="button" class="pv-action-item" onclick="openNewChatModal()" title="Start a new direct chat">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -48,6 +48,10 @@
                     <button type="button" class="pv-action-item" onclick="openNewGroupModal()" title="Create an encrypted group">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         <span>New group</span>
+                    </button>
+                    <button type="button" class="pv-action-item" onclick="openJoinGroupModal()" title="Join an existing group room">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                        <span>Join group</span>
                     </button>
                 </div>
 
@@ -68,15 +72,16 @@
                 </div>
 
                 <!-- Block 4: Profile & Fingerprint with Outline Person Icon -->
-                <div class="pv-block pv-block-profile" onclick="toggleProfileModal()" title="Click to view full identity credentials & account settings">
-                    <div class="pv-profile-row">
+                <div class="pv-block pv-block-profile" title="Your device identity credentials & account settings">
+                    <div class="pv-profile-row" style="cursor:pointer;" onclick="toggleProfileModal()">
                         <div class="pv-person-outline-icon">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         </div>
-                        <div class="pv-profile-meta">
+                        <div class="pv-profile-meta" style="flex:1; min-width:0;">
                             <div class="pv-footer-label" id="my-handle-label">INITIALIZING</div>
                             <div class="pv-footer-fp" id="my-fingerprint">...</div>
                         </div>
+                        <button type="button" class="pv-mini-change-btn" onclick="event.stopPropagation(); openChangeHandleModal();" title="Change your handle">Change</button>
                     </div>
                 </div>
             </aside>
