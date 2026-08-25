@@ -200,3 +200,63 @@ func TestEncryptInvalidPublicKey(t *testing.T) {
 		t.Error("expected error when encrypting for invalid public key, got nil")
 	}
 }
+
+// TEST 6: EncryptMulti allows multiple recipients to independently decrypt the same payload.
+func TestEncryptMulti_MultipleRecipients(t *testing.T) {
+	devA, err := crypto.GenerateIdentity()
+	if err != nil {
+		t.Fatalf("failed to generate Device A: %v", err)
+	}
+	devB, err := crypto.GenerateIdentity()
+	if err != nil {
+		t.Fatalf("failed to generate Device B: %v", err)
+	}
+	devC, err := crypto.GenerateIdentity()
+	if err != nil {
+		t.Fatalf("failed to generate Device C: %v", err)
+	}
+	devD, err := crypto.GenerateIdentity() // Unauthorized
+	if err != nil {
+		t.Fatalf("failed to generate Device D: %v", err)
+	}
+
+	pubKeyA := crypto.GetPublicKey(devA)
+	pubKeyB := crypto.GetPublicKey(devB)
+	pubKeyC := crypto.GetPublicKey(devC)
+
+	groupPayload := []byte("Top secret group chat message for A, B, and C")
+
+	// Encrypt multi-recipient payload
+	ciphertext, err := crypto.EncryptMulti(groupPayload, pubKeyA, pubKeyB, pubKeyC)
+	if err != nil {
+		t.Fatalf("EncryptMulti failed: %v", err)
+	}
+
+	// Device A decrypts
+	decA, err := crypto.Decrypt(ciphertext, devA)
+	if err != nil || string(decA) != string(groupPayload) {
+		t.Fatalf("Device A failed to decrypt group message: %v", err)
+	}
+
+	// Device B decrypts
+	decB, err := crypto.Decrypt(ciphertext, devB)
+	if err != nil || string(decB) != string(groupPayload) {
+		t.Fatalf("Device B failed to decrypt group message: %v", err)
+	}
+
+	// Device C decrypts
+	decC, err := crypto.Decrypt(ciphertext, devC)
+	if err != nil || string(decC) != string(groupPayload) {
+		t.Fatalf("Device C failed to decrypt group message: %v", err)
+	}
+
+	// Device D (unauthorized) MUST fail to decrypt
+	_, err = crypto.Decrypt(ciphertext, devD)
+	if err == nil {
+		t.Fatalf("unauthorized Device D successfully decrypted group message!")
+	}
+	if !errors.Is(err, crypto.ErrDecryptionFailed) {
+		t.Errorf("expected ErrDecryptionFailed for unauthorized Device D, got %v", err)
+	}
+}
+

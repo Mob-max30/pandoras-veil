@@ -302,6 +302,7 @@ type RelayClient interface {
 	GetKey(handle string) (*KeyInfo, error)
 	PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
 	PostChatMessage(recipient, sender, ciphertext string) (string, error)
+	PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error)
 	GetPaste(id string) (string, error)
 	ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error
 	Health() error
@@ -455,6 +456,22 @@ func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (stri
 	return createResp.ID, nil
 }
 
+func (c *HTTPClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
+	var ids []string
+	for _, rc := range recipients {
+		trimmed := strings.TrimSpace(rc)
+		if trimmed == "" {
+			continue
+		}
+		id, err := c.PostChatMessage(trimmed, sender, ciphertext)
+		if err != nil {
+			return ids, fmt.Errorf("failed to send message to group member %s: %w", trimmed, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
 	streamURL := fmt.Sprintf("%s/stream?handle=%s", c.BaseURL, handle)
 	req, err := http.NewRequest("GET", streamURL, nil)
@@ -597,6 +614,18 @@ func (m *MockClient) PostChatMessage(recipient, sender, ciphertext string) (stri
 		BurnAfterReading: false,
 	}
 	return id, nil
+}
+
+func (m *MockClient) PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error) {
+	var ids []string
+	for _, rc := range recipients {
+		id, err := m.PostChatMessage(rc, sender, ciphertext)
+		if err != nil {
+			return ids, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (m *MockClient) GetPaste(id string) (string, error) {

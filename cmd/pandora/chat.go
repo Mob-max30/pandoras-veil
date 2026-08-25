@@ -15,18 +15,26 @@ import (
 	"github.com/Mob-max30/pandoras-veil/internal/storage"
 )
 
-// runChat handles 'pandora chat' command
+type groupMember struct {
+	handle      string
+	publicKey   string
+	fingerprint string
+}
+
+// runChat handles 'pandora chat' command for 1-on-1 and Group Chat
 func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
-	withFlag := fs.String("with", "", "Recipient handle to chat with (e.g. PV-BOB) (required)")
+	withFlag := fs.String("with", "", "Recipient handle or comma-separated handles for group chat (e.g. PV-BOB or PV-BOB,PV-ALICE)")
+	groupFlag := fs.String("group", "", "Comma-separated group member handles (e.g. PV-BOB,PV-ALICE)")
 	relayFlag := fs.String("relay", client.DefaultRelayURL, "Relay server URL")
 	pathFlag := fs.String("config", "", "Custom path for local identity file")
 
 	fs.Usage = func() {
-		fmt.Fprintf(ui.Out, "Usage: pandora chat --with <handle> [options]\n\n")
-		fmt.Fprintf(ui.Out, "Starts a real-time, end-to-end encrypted live chat session with another device.\n\n")
+		fmt.Fprintf(ui.Out, "Usage: pandora chat --with <handle> [options]\n")
+		fmt.Fprintf(ui.Out, "   or: pandora chat --group <handle1,handle2> [options]\n\n")
+		fmt.Fprintf(ui.Out, "Starts a real-time, end-to-end encrypted live chat session (1-on-1 or Group).\n\n")
 		fmt.Fprintf(ui.Out, "Options:\n")
 		fs.PrintDefaults()
 	}
@@ -35,11 +43,41 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		return 1
 	}
 
-	if *withFlag == "" {
-		ui.Error("Recipient handle is required. Specify with --with <handle>")
+	targetHandlesStr := *withFlag
+	if targetHandlesStr == "" {
+		targetHandlesStr = *groupFlag
+	}
+
+	if targetHandlesStr == "" {
+		ui.Error("Recipient handle is required. Specify with --with <handle> or --group <handle1,handle2>")
 		fs.Usage()
 		return 1
 	}
+
+	// Parse recipient handles
+	var rawHandles []string
+	if strings.Contains(targetHandlesStr, ",") {
+		rawHandles = strings.Split(targetHandlesStr, ",")
+	} else {
+		rawHandles = []string{targetHandlesStr}
+	}
+
+	var recipientHandles []string
+	seen := make(map[string]bool)
+	for _, h := range rawHandles {
+		trimmed := strings.TrimSpace(h)
+		if trimmed != "" && !seen[strings.ToUpper(trimmed)] {
+			seen[strings.ToUpper(trimmed)] = true
+			recipientHandles = append(recipientHandles, trimmed)
+		}
+	}
+
+	if len(recipientHandles) == 0 {
+		ui.Error("No valid recipient handles specified.")
+		return 1
+	}
+
+	isGroup := len(recipientHandles) > 1
 
 	// If using real HTTP client, update base URL from flag
 	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
@@ -66,38 +104,84 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		return 1
 	}
 
-	// 3. Resolve Recipient Key & Fingerprint
-	ui.Info("Resolving recipient '%s' from relay...", *withFlag)
-	recipientInfo, err := apiClient.GetKey(*withFlag)
-	if err != nil {
-		ui.Error("Failed to resolve recipient '%s': %v", *withFlag, err)
+	// Remove local user from recipient handles if included in group list
+	filteredHandles := make([]string, 0, len(recipientHandles))
+	for _, h := range recipientHandles {
+		if !strings.EqualFold(h, localIdFile.Handle) {
+			filteredHandles = append(filteredHandles, h)
+		}
+	}
+	if len(filteredHandles) == 0 {
+		ui.Error("Cannot start a chat session targeting only yourself.")
 		return 1
 	}
+	recipientHandles = filteredHandles
+	isGroup = len(recipientHandles) > 1
 
-	expectedFingerprint := recipientInfo.Fingerprint
-	if expectedFingerprint == "" {
-		expectedFingerprint = crypto.ComputeFingerprint(recipientInfo.PublicKey)
+	// 3. Resolve All Recipient Keys & Fingerprints
+	var members []groupMember
+	for _, handle := range recipientHandles {
+		ui.Info("Resolving recipient '%s' from relay...", handle)
+		info, err := apiClient.GetKey(handle)
+		if err != nil {
+			ui.Error("Failed to resolve recipient '%s': %v", handle, err)
+			return 1
+		}
+		fp := info.Fingerprint
+		if fp == "" {
+			fp = crypto.ComputeFingerprint(info.PublicKey)
+		}
+		members = append(members, groupMember{
+			handle:      handle,
+			publicKey:   info.PublicKey,
+			fingerprint: fp,
+		})
 	}
 
 	// 4. Mandatory Fingerprint Verification Hard-Stop Upfront
-	fmt.Fprintf(ui.Out, "\n%s================ LIVE CHAT SECURITY VERIFICATION ===============%s\n", ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  Your Handle:           %s%s%s (Fingerprint: %s)\n", ColorCyan, localIdFile.Handle, ColorReset, localIdFile.Fingerprint)
-	fmt.Fprintf(ui.Out, "  Recipient Handle:      %s%s%s\n", ColorCyan, *withFlag, ColorReset)
-	fmt.Fprintf(ui.Out, "  Recipient Fingerprint: %s%s%s\n", ColorYellow, expectedFingerprint, ColorReset)
-	fmt.Fprintf(ui.Out, "  Target Public Key:     %s%s%s\n", ColorDim, recipientInfo.PublicKey, ColorReset)
-	fmt.Fprintf(ui.Out, "%s=================================================================%s\n", ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "%s[SECURITY CHECK]%s Verify that the recipient's device fingerprint matches.\n\n", ColorYellow, ColorReset)
+	if isGroup {
+		fmt.Fprintf(ui.Out, "\n%s================ LIVE GROUP CHAT SECURITY VERIFICATION ================%s\n", ColorBold, ColorReset)
+		fmt.Fprintf(ui.Out, "  Your Handle:   %s%s%s (Fingerprint: %s)\n", ColorCyan, localIdFile.Handle, ColorReset, localIdFile.Fingerprint)
+		fmt.Fprintf(ui.Out, "  Group Members (%d):\n", len(members))
+		for _, m := range members {
+			fmt.Fprintf(ui.Out, "    • %s%s%s (Fingerprint: %s%s%s)\n", ColorCyan, m.handle, ColorReset, ColorYellow, m.fingerprint, ColorReset)
+		}
+		fmt.Fprintf(ui.Out, "%s========================================================================%s\n", ColorBold, ColorReset)
+		fmt.Fprintf(ui.Out, "%s[SECURITY CHECK]%s Verify that device fingerprints for ALL group members match.\n\n", ColorYellow, ColorReset)
 
-	promptText := fmt.Sprintf("Establish encrypted live session with %s (%s)?", *withFlag, expectedFingerprint)
-	if !ui.PromptConfirm(promptText) {
-		ui.Error("Verification aborted by user. Chat session terminated.")
-		return 1
+		promptText := fmt.Sprintf("Establish encrypted group chat session with %d member(s)?", len(members))
+		if !ui.PromptConfirm(promptText) {
+			ui.Error("Verification aborted by user. Group chat session terminated.")
+			return 1
+		}
+	} else {
+		m := members[0]
+		fmt.Fprintf(ui.Out, "\n%s================ LIVE CHAT SECURITY VERIFICATION ===============%s\n", ColorBold, ColorReset)
+		fmt.Fprintf(ui.Out, "  Your Handle:           %s%s%s (Fingerprint: %s)\n", ColorCyan, localIdFile.Handle, ColorReset, localIdFile.Fingerprint)
+		fmt.Fprintf(ui.Out, "  Recipient Handle:      %s%s%s\n", ColorCyan, m.handle, ColorReset)
+		fmt.Fprintf(ui.Out, "  Recipient Fingerprint: %s%s%s\n", ColorYellow, m.fingerprint, ColorReset)
+		fmt.Fprintf(ui.Out, "  Target Public Key:     %s%s%s\n", ColorDim, m.publicKey, ColorReset)
+		fmt.Fprintf(ui.Out, "%s=================================================================%s\n", ColorBold, ColorReset)
+		fmt.Fprintf(ui.Out, "%s[SECURITY CHECK]%s Verify that the recipient's device fingerprint matches.\n\n", ColorYellow, ColorReset)
+
+		promptText := fmt.Sprintf("Establish encrypted live session with %s (%s)?", m.handle, m.fingerprint)
+		if !ui.PromptConfirm(promptText) {
+			ui.Error("Verification aborted by user. Chat session terminated.")
+			return 1
+		}
 	}
 
 	// 5. Render Live Chat Header
 	fmt.Fprintf(ui.Out, "\n%s%s================================================================================%s\n", ColorBold, ColorCyan, ColorReset)
-	fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE RELAY | End-to-End Encrypted Session with %s%s\n", ColorBold, ColorGreen, *withFlag, ColorReset)
-	fmt.Fprintf(ui.Out, "%s%s  Device Fingerprint: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, expectedFingerprint, ColorReset)
+	if isGroup {
+		handleListStr := strings.Join(recipientHandles, ", ")
+		fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE GROUP RELAY | Encrypted Group Session (%d Members)%s\n", ColorBold, ColorGreen, len(members)+1, ColorReset)
+		fmt.Fprintf(ui.Out, "%s%s  Group Members: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, handleListStr, ColorReset)
+	} else {
+		m := members[0]
+		fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE RELAY | End-to-End Encrypted Session with %s%s\n", ColorBold, ColorGreen, m.handle, ColorReset)
+		fmt.Fprintf(ui.Out, "%s%s  Device Fingerprint: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, m.fingerprint, ColorReset)
+	}
 	fmt.Fprintf(ui.Out, "%s%s  Type your message and press [Enter] to send live. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorReset)
 	fmt.Fprintf(ui.Out, "%s%s================================================================================%s\n\n", ColorBold, ColorCyan, ColorReset)
 
@@ -110,23 +194,30 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
-			// Strict 1-on-1 session isolation: drop messages from any sender other than the active recipient (*withFlag)
-			if msg.Sender != "" && !strings.EqualFold(msg.Sender, *withFlag) {
-				return
+			// Session isolation check: filter out messages from anyone outside active recipient list
+			isMember := false
+			for _, h := range recipientHandles {
+				if strings.EqualFold(msg.Sender, h) {
+					isMember = true
+					break
+				}
+			}
+			if msg.Sender != "" && !isMember {
+				return // Drop non-session messages
 			}
 
 			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
 			if err != nil {
-				// Silently skip corrupted or unaddressed messages
+				// Silently skip unaddressed/corrupted messages
 				return
 			}
 			timestamp := time.Now().Format("15:04:05")
 			senderName := msg.Sender
 			if senderName == "" {
-				senderName = *withFlag
+				senderName = recipientHandles[0]
 			}
 
-			// Left-aligned incoming bubble (WhatsApp style)
+			// Left-aligned incoming bubble
 			incomingMsg := fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
 				ColorDim, timestamp, ColorReset,
 				ColorBold+ColorMagenta, senderName, ColorReset,
@@ -166,16 +257,29 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			return 0
 		}
 
-		// Encrypt message locally targeting recipient's public key
-		ciphertext, err := crypto.Encrypt([]byte(text), recipientInfo.PublicKey)
+		// Encrypt message locally using age recipient-based encryption
+		var ciphertext []byte
+		if isGroup {
+			pubKeys := make([]string, len(members))
+			for i, m := range members {
+				pubKeys[i] = m.publicKey
+			}
+			ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+		} else {
+			ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+		}
 		if err != nil {
 			ui.Error("Encryption failed: %v", err)
 			promptPrompt()
 			continue
 		}
 
-		// Send live message envelope to relay
-		_, err = apiClient.PostChatMessage(*withFlag, localIdFile.Handle, string(ciphertext))
+		// Send live message envelope(s) to relay
+		if isGroup {
+			_, err = apiClient.PostGroupChatMessage(recipientHandles, localIdFile.Handle, string(ciphertext))
+		} else {
+			_, err = apiClient.PostChatMessage(recipientHandles[0], localIdFile.Handle, string(ciphertext))
+		}
 		if err != nil {
 			ui.Error("Delivery failed: %v", err)
 			promptPrompt()
@@ -183,9 +287,8 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 
 		timestamp := time.Now().Format("15:04:05")
-		
+
 		// Right-aligned outgoing bubble (WhatsApp style)
-		// Format: <message in green>  [YOU in pink] [timestamp in gray]
 		visibleLen := len(text) + len(timestamp) + 12
 		pad := chatWidth - visibleLen
 		if pad < 2 {
