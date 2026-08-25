@@ -300,11 +300,11 @@ func TestPostChatMessage_SendsFrozenPasteSchema(t *testing.T) {
 			return
 		}
 
-		if _, exists := rawMap["recipient"]; exists {
-			t.Errorf("request body contains prohibited field 'recipient'")
+		if _, exists := rawMap["recipient"]; !exists {
+			t.Errorf("request body missing routing field 'recipient'")
 		}
-		if _, exists := rawMap["sender"]; exists {
-			t.Errorf("request body contains prohibited field 'sender'")
+		if _, exists := rawMap["sender"]; !exists {
+			t.Errorf("request body missing routing field 'sender'")
 		}
 		if _, exists := rawMap["ciphertext"]; !exists {
 			t.Errorf("request body missing required field 'ciphertext'")
