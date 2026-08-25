@@ -180,7 +180,8 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 		timestamp := time.Now().Format("15:04:05")
 		
 		// Right-aligned outgoing bubble (WhatsApp style)
-		visibleLen := len(text) + len(timestamp) + 12
+		// Format: <message in green>  [YOU in pink] [✓✓ in green] [timestamp in gray]
+		visibleLen := len(text) + len(timestamp) + 18
 		pad := chatWidth - visibleLen
 		if pad < 2 {
 			pad = 2
@@ -188,10 +189,12 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 		spaces := strings.Repeat(" ", pad)
 
 		// Move cursor up 1 line, clear it, and print right-aligned sent message
-		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[✓✓] [%s]%s\n",
+		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[YOU]%s %s[✓✓]%s %s[%s]%s\n",
 			spaces,
 			ColorBold+ColorGreen, text, ColorReset,
-			ColorGreen, timestamp, ColorReset,
+			ColorBold+ColorMagenta, ColorReset,
+			ColorBold+ColorGreen, ColorReset,
+			ColorDim, timestamp, ColorReset,
 		)
 
 		promptPrompt()
