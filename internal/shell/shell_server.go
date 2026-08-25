@@ -63,13 +63,17 @@ func resolveKey(apiClient client.RelayClient, handle string) (*client.KeyInfo, e
 
 type GroupEnvelope struct {
 	IsGroup      bool     `json:"is_group"`
+	IsGroupAlt   bool     `json:"__pv_group_flag"`
 	GroupName    string   `json:"group_name"`
+	GroupAlt     string   `json:"__pv_group"`
 	GroupMembers []string `json:"group_members"`
+	MembersAlt   []string `json:"members"`
 	Sender       string   `json:"sender"`
 	Text         string   `json:"text,omitempty"`
 	IsFile       bool     `json:"is_file,omitempty"`
 	Filename     string   `json:"filename,omitempty"`
 	DataB64      string   `json:"data_b64,omitempty"`
+	DataURL      string   `json:"data,omitempty"`
 }
 
 func unpackDecrypted(plaintext []byte, fallbackSender string) map[string]interface{} {
@@ -77,38 +81,61 @@ func unpackDecrypted(plaintext []byte, fallbackSender string) map[string]interfa
 	timestamp := time.Now().Format("15:04")
 
 	var grp GroupEnvelope
-	if err := json.Unmarshal(trimmed, &grp); err == nil && (grp.IsGroup || strings.HasPrefix(grp.GroupName, "#")) {
-		sender := grp.Sender
-		if sender == "" {
-			sender = fallbackSender
+	if err := json.Unmarshal(trimmed, &grp); err == nil {
+		gName := grp.GroupName
+		if gName == "" {
+			gName = grp.GroupAlt
 		}
+		if grp.IsGroup || grp.IsGroupAlt || strings.HasPrefix(gName, "#") {
+			sender := grp.Sender
+			if sender == "" {
+				sender = fallbackSender
+			}
+			members := grp.GroupMembers
+			if len(members) == 0 {
+				members = grp.MembersAlt
+			}
 
-		if grp.IsFile && grp.DataB64 != "" {
-			fileBytes, _ := base64.StdEncoding.DecodeString(grp.DataB64)
-			_ = os.MkdirAll("./downloads", 0755)
-			savePath := filepath.Join("./downloads", grp.Filename)
-			_ = os.WriteFile(savePath, fileBytes, 0600)
+			if grp.IsFile && (grp.DataB64 != "" || grp.DataURL != "") {
+				rawB64 := grp.DataB64
+				if rawB64 == "" && grp.DataURL != "" {
+					if idx := strings.Index(grp.DataURL, ","); idx != -1 {
+						rawB64 = grp.DataURL[idx+1:]
+					} else {
+						rawB64 = grp.DataURL
+					}
+				}
+
+				fileBytes, _ := base64.StdEncoding.DecodeString(rawB64)
+				_ = os.MkdirAll("./downloads", 0755)
+				fname := grp.Filename
+				if fname == "" {
+					fname = "received_file"
+				}
+				savePath := filepath.Join("./downloads", fname)
+				_ = os.WriteFile(savePath, fileBytes, 0600)
+
+				return map[string]interface{}{
+					"isGroup":      true,
+					"groupName":    gName,
+					"groupMembers": members,
+					"sender":       sender,
+					"isFile":       true,
+					"filename":     fname,
+					"fileSize":     len(fileBytes),
+					"savePath":     savePath,
+					"timestamp":    timestamp,
+				}
+			}
 
 			return map[string]interface{}{
 				"isGroup":      true,
-				"groupName":    grp.GroupName,
-				"groupMembers": grp.GroupMembers,
+				"groupName":    gName,
+				"groupMembers": members,
 				"sender":       sender,
-				"isFile":       true,
-				"filename":     grp.Filename,
-				"fileSize":     len(fileBytes),
-				"savePath":     savePath,
+				"text":         grp.Text,
 				"timestamp":    timestamp,
 			}
-		}
-
-		return map[string]interface{}{
-			"isGroup":      true,
-			"groupName":    grp.GroupName,
-			"groupMembers": grp.GroupMembers,
-			"sender":       sender,
-			"text":         grp.Text,
-			"timestamp":    timestamp,
 		}
 	}
 

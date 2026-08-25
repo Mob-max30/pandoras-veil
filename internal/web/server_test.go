@@ -179,12 +179,12 @@ func TestWebServer_IdentityAndSendWithToken(t *testing.T) {
 		t.Fatalf("expected 200 for identity, got %d: %s", recId.Code, recId.Body.String())
 	}
 
-	var idResp map[string]string
+	var idResp map[string]any
 	if err := json.Unmarshal(recId.Body.Bytes(), &idResp); err != nil {
 		t.Fatalf("failed unmarshaling identity: %v", err)
 	}
 	if idResp["handle"] != "PV-TESTER" {
-		t.Fatalf("expected handle PV-TESTER, got %s", idResp["handle"])
+		t.Fatalf("expected handle PV-TESTER, got %v", idResp["handle"])
 	}
 
 	// 2. Test /api/send with token

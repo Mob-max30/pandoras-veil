@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const groupList = document.getElementById('group-list');
   const addDmBtn = document.getElementById('add-dm-btn');
   const addGroupBtn = document.getElementById('add-group-btn');
+  const joinGroupBtn = document.getElementById('join-group-btn');
   const addMemberBtn = document.getElementById('add-member-btn');
 
   let activeChannel = '';
@@ -434,6 +435,20 @@ document.addEventListener('DOMContentLoaded', () => {
     groupMembers[cleanGroup] = members;
     addChannelItem(cleanGroup, true, true);
   });
+
+  // Join Existing Group Button
+  if (joinGroupBtn) {
+    joinGroupBtn.addEventListener('click', () => {
+      const name = prompt('Enter group chat room name to join (e.g. #Security-Team):');
+      if (!name || !name.trim()) return;
+      let cleanGroup = name.trim();
+      if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
+      if (!groupMembers[cleanGroup]) {
+        groupMembers[cleanGroup] = [];
+      }
+      addChannelItem(cleanGroup, true, true);
+    });
+  }
 
   // Add Member to Existing Group Button
   if (addMemberBtn) {
