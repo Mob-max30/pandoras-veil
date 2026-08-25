@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const metaHostEl = document.getElementById('meta-host');
   const changeHandleBtn = document.getElementById('change-handle-btn');
 
+  // In-Memory Per-Channel Message Store
+  const channelHistories = {
+    '#Development': []
+  };
+
   async function fetchIdentity() {
     try {
       const res = await fetch('/api/identity');
@@ -32,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentHostHandle = data.handle;
         currentFingerprint = data.fingerprint || '';
         updateIdentityUI();
+        initLiveStream();
       } else {
         promptForHandle();
       }
@@ -64,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentHostHandle = data.handle;
         currentFingerprint = data.fingerprint || '';
         updateIdentityUI();
+        initLiveStream();
       }
     } catch (e) {
       alert('Failed to register handle: ' + e.message);
@@ -74,16 +81,81 @@ document.addEventListener('DOMContentLoaded', () => {
     changeHandleBtn.addEventListener('click', promptForHandle);
   }
 
-  fetchIdentity();
+  // 1. Live SSE Stream Connection to Relay Backend
+  let streamConnected = false;
+  function initLiveStream() {
+    if (streamConnected) return;
+    streamConnected = true;
 
-  // In-Memory Per-Channel Message Store
-  const channelHistories = {
-    '#Development': [
-      { sender: 'PV-UJWAL', text: 'Deployment complete for v1.2.5.', time: '14:32', isYou: false },
-      { sender: 'YOU', text: 'Confirmed. Monitoring throughput.', time: '14:38', isYou: true },
-      { sender: 'PV-UJWAL', text: 'Need final verification on the protocol patch.', time: '14:40', isYou: false }
-    ]
-  };
+    const eventSource = new EventSource('/api/stream');
+
+    eventSource.onmessage = e => {
+      try {
+        const data = JSON.parse(e.data);
+        if (!data || !data.sender) return;
+
+        const senderHandle = data.sender.toUpperCase();
+        if (!channelHistories[senderHandle]) {
+          channelHistories[senderHandle] = [];
+        }
+
+        // Auto-add sender to DM list if not present
+        ensureChannelExists(senderHandle, false);
+
+        const timeStr = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const msgObj = {
+          sender: senderHandle,
+          text: data.text || '',
+          isFile: data.isFile || false,
+          filename: data.filename || '',
+          fileSize: data.fileSize || 0,
+          savePath: data.savePath || '',
+          time: timeStr,
+          isYou: false
+        };
+
+        channelHistories[senderHandle].push(msgObj);
+
+        // If currently looking at this sender's chat, re-render
+        if (activeChannel.toUpperCase() === senderHandle || activeChannel === '#Development') {
+          renderCurrentChannel();
+        }
+      } catch (err) {
+        console.error('Failed to parse incoming stream message:', err);
+      }
+    };
+
+    eventSource.onerror = err => {
+      console.warn('Stream disconnected, retrying...', err);
+    };
+  }
+
+  function ensureChannelExists(name, isGroup) {
+    if (isGroup) {
+      let existing = groupList.querySelector(`[data-group="${name}"]`);
+      if (!existing) {
+        existing = document.createElement('li');
+        existing.className = 'channel-item';
+        existing.dataset.group = name;
+        existing.innerHTML = `<span class="hash">#</span>${name.replace('#', '')} <span class="dot online"></span>`;
+        groupList.appendChild(existing);
+        bindChannelEvents();
+      }
+    } else {
+      const emptyHint = dmList.querySelector('.empty-hint');
+      if (emptyHint) emptyHint.remove();
+
+      let existing = dmList.querySelector(`[data-handle="${name}"]`);
+      if (!existing) {
+        existing = document.createElement('li');
+        existing.className = 'channel-item';
+        existing.dataset.handle = name;
+        existing.innerHTML = `<span class="dot online"></span> ${name}`;
+        dmList.appendChild(existing);
+        bindChannelEvents();
+      }
+    }
+  }
 
   // TTL Selection
   ttlBtns.forEach(btn => {
@@ -109,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  function renderCurrentChannel() {
+  async function renderCurrentChannel() {
     msgContainer.innerHTML = '';
     const history = channelHistories[activeChannel] || [];
 
@@ -130,10 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = document.createElement('div');
         row.className = `chat-bubble-row ${msg.isYou ? 'right' : 'left'}`;
         if (msg.isFile) {
+          const downloadNote = msg.savePath ? `<br><small style="color:var(--cyan-primary);">Saved to ${escapeHTML(msg.savePath)}</small>` : '';
           row.innerHTML = `
             <div class="bubble-meta">[${msg.time}] ${msg.isYou ? '<span class="you-badge">[YOU]</span>' : `<span class="sender-name">${escapeHTML(msg.sender)}</span>`}</div>
             <div class="chat-bubble ${msg.isYou ? 'right-bubble' : 'left-bubble'}">
-              📁 [FILE] ${escapeHTML(msg.filename)} (${Math.round(msg.fileSize / 1024)} KB)
+              📁 <strong>[FILE RECEIVED]</strong> ${escapeHTML(msg.filename)} (${Math.round(msg.fileSize / 1024)} KB)${downloadNote}
             </div>
           `;
         } else {
@@ -156,11 +229,55 @@ document.addEventListener('DOMContentLoaded', () => {
     const recipFpVal = document.getElementById('recip-fp-val');
     if (!activeChannel.startsWith('#')) {
       if (recipFpRow) recipFpRow.style.display = 'flex';
-      if (recipFpVal) recipFpVal.textContent = '1E42-2834';
+      if (recipFpVal) {
+        recipFpVal.textContent = 'Verifying...';
+        try {
+          const res = await fetch(`/api/lookup?handle=${encodeURIComponent(activeChannel)}`);
+          if (res.ok) {
+            const data = await res.json();
+            recipFpVal.textContent = data.fingerprint || 'Verified';
+          } else {
+            recipFpVal.textContent = 'Unregistered';
+          }
+        } catch (e) {
+          recipFpVal.textContent = 'Offline';
+        }
+      }
     } else {
       if (recipFpRow) recipFpRow.style.display = 'none';
     }
     scrollToBottom();
+  }
+
+  async function checkOfflineInbox(handle) {
+    try {
+      const res = await fetch(`/api/inbox?sender=${encodeURIComponent(handle)}`);
+      if (res.ok) {
+        const msgs = await res.json();
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          if (!channelHistories[handle]) {
+            channelHistories[handle] = [];
+          }
+          msgs.forEach(m => {
+            channelHistories[handle].push({
+              sender: m.sender || handle,
+              text: m.text || '',
+              isFile: m.isFile || false,
+              filename: m.filename || '',
+              fileSize: m.fileSize || 0,
+              savePath: m.savePath || '',
+              time: m.timestamp || 'Offline',
+              isYou: false
+            });
+          });
+          if (activeChannel.toUpperCase() === handle.toUpperCase()) {
+            renderCurrentChannel();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch offline inbox:', e);
+    }
   }
 
   function bindChannelEvents() {
@@ -170,12 +287,16 @@ document.addEventListener('DOMContentLoaded', () => {
         item.classList.add('active');
         activeChannel = item.dataset.handle || item.dataset.group;
         renderCurrentChannel();
+        if (!activeChannel.startsWith('#')) {
+          checkOfflineInbox(activeChannel);
+        }
       };
     });
   }
 
   bindChannelEvents();
   renderCurrentChannel();
+  fetchIdentity();
 
   // Add DM
   addDmBtn.addEventListener('click', () => {
@@ -184,22 +305,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleanHandle = handle.trim().toUpperCase();
     if (!cleanHandle) return;
 
-    const emptyHint = dmList.querySelector('.empty-hint');
-    if (emptyHint) emptyHint.remove();
-
-    let existing = dmList.querySelector(`[data-handle="${cleanHandle}"]`);
-    if (!existing) {
-      existing = document.createElement('li');
-      existing.className = 'channel-item';
-      existing.dataset.handle = cleanHandle;
-      existing.innerHTML = `<span class="dot online"></span> ${cleanHandle}`;
-      dmList.appendChild(existing);
-      bindChannelEvents();
-    }
+    ensureChannelExists(cleanHandle, false);
     if (!channelHistories[cleanHandle]) {
       channelHistories[cleanHandle] = [];
     }
-    existing.click();
+
+    const item = dmList.querySelector(`[data-handle="${cleanHandle}"]`);
+    if (item) item.click();
   });
 
   // Add Group
@@ -209,19 +321,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let cleanGroup = name.trim();
     if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
 
-    let existing = groupList.querySelector(`[data-group="${cleanGroup}"]`);
-    if (!existing) {
-      existing = document.createElement('li');
-      existing.className = 'channel-item';
-      existing.dataset.group = cleanGroup;
-      existing.innerHTML = `<span class="hash">#</span>${cleanGroup.replace('#', '')} <span class="dot online"></span>`;
-      groupList.appendChild(existing);
-      bindChannelEvents();
-    }
+    ensureChannelExists(cleanGroup, true);
     if (!channelHistories[cleanGroup]) {
       channelHistories[cleanGroup] = [];
     }
-    existing.click();
+
+    const item = groupList.querySelector(`[data-group="${cleanGroup}"]`);
+    if (item) item.click();
   });
 
   function scrollToBottom() {
@@ -238,31 +344,63 @@ document.addEventListener('DOMContentLoaded', () => {
   function triggerFileAttachment() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.onchange = e => {
+    input.onchange = async e => {
       const file = e.target.files[0];
       if (!file) return;
 
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const msgObj = {
-        sender: 'YOU',
-        isFile: true,
-        filename: file.name,
-        fileSize: file.size,
-        time: timeStr,
-        isYou: true
-      };
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = reader.result;
+        const b64Data = result.split(',')[1];
 
-      if (!channelHistories[activeChannel]) {
-        channelHistories[activeChannel] = [];
-      }
-      channelHistories[activeChannel].push(msgObj);
-      renderCurrentChannel();
+        const payload = {
+          target: activeChannel,
+          isGroup: activeChannel.startsWith('#'),
+          file: {
+            filename: file.name,
+            dataB64: b64Data
+          },
+          ttl: activeTTL,
+          burn: isBurnActive
+        };
+
+        try {
+          const res = await fetch('/api/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const msgObj = {
+              sender: 'YOU',
+              isFile: true,
+              filename: file.name,
+              fileSize: file.size,
+              time: timeStr,
+              isYou: true
+            };
+
+            if (!channelHistories[activeChannel]) {
+              channelHistories[activeChannel] = [];
+            }
+            channelHistories[activeChannel].push(msgObj);
+            renderCurrentChannel();
+          } else {
+            alert('Failed to send file: ' + (data.error || 'Relay error'));
+          }
+        } catch (err) {
+          alert('Network error uploading file: ' + err.message);
+        }
+      };
+      reader.readAsDataURL(file);
     };
     input.click();
   }
 
   // Sending Messages
-  cmdInput.addEventListener('keydown', e => {
+  cmdInput.addEventListener('keydown', async e => {
     if (e.key === 'Enter') {
       const text = cmdInput.value.trim();
       if (!text) return;
@@ -273,21 +411,42 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const msgObj = {
-        sender: 'YOU',
+      const payload = {
+        target: activeChannel,
+        isGroup: activeChannel.startsWith('#'),
         text: text,
-        time: timeStr,
-        isYou: true
+        ttl: activeTTL,
+        burn: isBurnActive
       };
 
-      if (!channelHistories[activeChannel]) {
-        channelHistories[activeChannel] = [];
-      }
-      channelHistories[activeChannel].push(msgObj);
-      renderCurrentChannel();
+      try {
+        const res = await fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const msgObj = {
+            sender: 'YOU',
+            text: text,
+            time: timeStr,
+            isYou: true
+          };
 
-      cmdInput.value = '';
+          if (!channelHistories[activeChannel]) {
+            channelHistories[activeChannel] = [];
+          }
+          channelHistories[activeChannel].push(msgObj);
+          renderCurrentChannel();
+          cmdInput.value = '';
+        } else {
+          alert('Failed to send message: ' + (data.error || 'Relay error'));
+        }
+      } catch (err) {
+        alert('Network error sending message: ' + err.message);
+      }
     }
   });
 

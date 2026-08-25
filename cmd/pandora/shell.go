@@ -23,7 +23,7 @@ func runShell(args []string, ui *UI, apiClient client.RelayClient) int {
 	}
 
 	ui.Info("Launching Pandora Dedicated Standalone App Shell UI...")
-	appURL, err := shell.StartShellServer(*portFlag)
+	appURL, err := shell.StartShellServer(*portFlag, apiClient)
 	if err != nil {
 		ui.Error("Failed to start local App Shell server: %v", err)
 		return 1
