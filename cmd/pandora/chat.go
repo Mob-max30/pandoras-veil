@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -123,7 +125,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
 	fmt.Fprintf(ui.Out, "  %s%s%s | Zero Knowledge Relay Active\n", ColorYellow, fpDetails, ColorReset)
-	fmt.Fprintf(ui.Out, "  Type your message and press [Enter] to send. Press [Ctrl+C] or /quit to exit.\n")
+	fmt.Fprintf(ui.Out, "  Type your message or /f to attach a file. Press [Enter] to send. Press [Ctrl+C] or /quit to exit.\n")
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
 
 	var printMu sync.Mutex
@@ -148,7 +150,15 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				if senderName == "" {
 					senderName = target
 				}
-				printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, time.Now().Format("15:04:05"), ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
+				filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+				if isFile {
+					_ = os.MkdirAll("./downloads", 0755)
+					savePath := filepath.Join("./downloads", filename)
+					_ = os.WriteFile(savePath, fileData, 0600)
+					printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > [FILE RECEIVED] %s (%d bytes) -> %s", ColorDim, time.Now().Format("15:04:05"), ColorReset, ColorYellow+ColorBold, senderName, ColorReset, filename, len(fileData), savePath))
+				} else {
+					printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, time.Now().Format("15:04:05"), ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
+				}
 			}
 		}
 	}
@@ -177,7 +187,15 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				senderName = recipientHandles[0]
 			}
 
-			printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, timestamp, ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
+			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+			if isFile {
+				_ = os.MkdirAll("./downloads", 0755)
+				savePath := filepath.Join("./downloads", filename)
+				_ = os.WriteFile(savePath, fileData, 0600)
+				printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > [FILE RECEIVED] %s (%d bytes) -> %s", ColorDim, timestamp, ColorReset, ColorYellow+ColorBold, senderName, ColorReset, filename, len(fileData), savePath))
+			} else {
+				printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, timestamp, ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
+			}
 		}, stopCh)
 	}()
 
@@ -205,7 +223,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 
 		if text == "/help" {
-			printLine(fmt.Sprintf("%s[i] Available commands: /clear | /quit%s", ColorDim, ColorReset))
+			printLine(fmt.Sprintf("%s[i] Available commands: /f (attach file) | /clear | /quit%s", ColorDim, ColorReset))
 			continue
 		}
 
@@ -213,23 +231,63 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			printMu.Lock()
 			fmt.Fprint(ui.Out, "\033[2J\033[H")
 			fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
-			fmt.Fprintf(ui.Out, "  🔒 %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
+			fmt.Fprintf(ui.Out, "  %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
 			fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
 			fmt.Fprint(ui.Out, prompt)
 			printMu.Unlock()
 			continue
 		}
 
-		// Encrypt message locally using age
-		var ciphertext []byte
-		if isGroup {
-			pubKeys := make([]string, len(members))
-			for i, m := range members {
-				pubKeys[i] = m.publicKey
+		// Handle file attachments (/f or /file or /sendfile)
+		isFileCmd := false
+		var filePath string
+
+		if text == "/f" || text == "/file" || text == "/attach" || text == "/sendfile" {
+			isFileCmd = true
+			filePath = openNativeFileDialog(ui)
+			if filePath == "" {
+				printLine("[i] File attachment cancelled.")
+				continue
 			}
-			ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/sendfile ") {
+			isFileCmd = true
+			parts := strings.SplitN(text, " ", 2)
+			if len(parts) > 1 {
+				filePath = strings.TrimSpace(parts[1])
+			}
+		}
+
+		var ciphertext []byte
+		var displayMsg string
+
+		if isFileCmd {
+			fileBytes, err := os.ReadFile(filePath)
+			if err != nil {
+				printLine(fmt.Sprintf("%s[!] Failed to read file %s: %v%s", ColorRed, filePath, err, ColorReset))
+				continue
+			}
+			fn := filepath.Base(filePath)
+			displayMsg = fmt.Sprintf("[FILE SENT] %s (%d bytes)", fn, len(fileBytes))
+			if isGroup {
+				pubKeys := make([]string, len(members))
+				for i, m := range members {
+					pubKeys[i] = m.publicKey
+				}
+				ciphertext, err = crypto.EncryptFilePayloadMulti(fn, fileBytes, pubKeys...)
+			} else {
+				ciphertext, err = crypto.EncryptFilePayload(fn, fileBytes, members[0].publicKey)
+			}
 		} else {
-			ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+			displayMsg = text
+			if isGroup {
+				pubKeys := make([]string, len(members))
+				for i, m := range members {
+					pubKeys[i] = m.publicKey
+				}
+				ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+			} else {
+				ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+			}
 		}
 
 		if err != nil {
@@ -251,9 +309,27 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 
 		// Print outgoing message cleanly
 		timestamp := time.Now().Format("15:04:05")
-		printLine(fmt.Sprintf("%s[%s]%s %s[YOU]%s > %s%s%s", ColorDim, timestamp, ColorReset, ColorGreen+ColorBold, ColorReset, ColorGreen, text, ColorReset))
+		printLine(fmt.Sprintf("%s[%s]%s %s[YOU]%s > %s%s%s", ColorDim, timestamp, ColorReset, ColorGreen+ColorBold, ColorReset, ColorGreen, displayMsg, ColorReset))
 	}
 
 	safeClose()
 	return 0
+}
+
+func openNativeFileDialog(ui *UI) string {
+	ui.Info("Opening file dialog...")
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", `
+		Add-Type -AssemblyName System.Windows.Forms
+		$dialog = New-Object System.Windows.Forms.OpenFileDialog
+		$dialog.Title = "Select File to Encrypt & Send - Pandora's Veil"
+		$dialog.Filter = "All Files (*.*)|*.*|Images (*.png;*.jpg;*.jpeg;*.gif)|*.png;*.jpg;*.jpeg;*.gif|Documents (*.pdf;*.docx;*.txt)|*.pdf;*.docx;*.txt|Media (*.mp4;*.mp3;*.zip)|*.mp4;*.mp3;*.zip"
+		if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+			Write-Output $dialog.FileName
+		}
+	`)
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
