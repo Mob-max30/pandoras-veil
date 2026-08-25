@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/Mob-max30/pandoras-veil/server/internal/idgen"
 	"github.com/Mob-max30/pandoras-veil/server/internal/store"
 )
@@ -92,6 +94,14 @@ func (f *fakeStore) Ping(context.Context) error {
 	if f.down {
 		return store.ErrUnavailable
 	}
+	return nil
+}
+
+func (f *fakeStore) Subscribe(_ context.Context, _ string) *redis.PubSub {
+	return nil
+}
+
+func (f *fakeStore) Publish(_ context.Context, _, _ string) error {
 	return nil
 }
 
@@ -271,6 +281,27 @@ func TestHealth_ReflectsStoreAvailability(t *testing.T) {
 	degraded := doRequest(t, router, "GET", "/health", nil)
 	if degraded.Code != http.StatusServiceUnavailable {
 		t.Fatalf("degraded status = %d, want 503", degraded.Code)
+	}
+}
+
+func TestHandleStream_MissingHandle(t *testing.T) {
+	router := NewRouter(newTestHandlers(newFakeStore()))
+
+	rec := doRequest(t, router, "GET", "/stream", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleStream_SuccessWithMiddleware(t *testing.T) {
+	router := NewRouter(newTestHandlers(newFakeStore()))
+
+	rec := doRequest(t, router, "GET", "/stream?handle=alice", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); contentType != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream", contentType)
 	}
 }
 

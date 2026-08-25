@@ -178,3 +178,16 @@ func (s *Store) GetPaste(ctx context.Context, id string) (PasteRecord, error) {
 
 	return PasteRecord{Ciphertext: val}, nil
 }
+
+// ---- Redis Pub/Sub ------------------------------------------------------
+
+// Subscribe returns a Redis PubSub for the given channel.
+func (s *Store) Subscribe(ctx context.Context, channel string) *redis.PubSub {
+	return s.rdb.Subscribe(ctx, channel)
+}
+
+// Publish posts a message to a Redis PubSub channel.
+func (s *Store) Publish(ctx context.Context, channel, message string) error {
+	return s.rdb.Publish(ctx, channel, message).Err()
+}
+

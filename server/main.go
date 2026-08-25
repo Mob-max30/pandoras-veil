@@ -52,7 +52,7 @@ func main() {
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		WriteTimeout:      0, // Disabled to allow long-lived SSE streams for live chat
 		IdleTimeout:       60 * time.Second,
 	}
 

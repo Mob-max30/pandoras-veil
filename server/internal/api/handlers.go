@@ -7,9 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/Mob-max30/pandoras-veil/server/internal/fingerprint"
 	"github.com/Mob-max30/pandoras-veil/server/internal/idgen"
@@ -26,6 +29,8 @@ type Store interface {
 	PutPaste(ctx context.Context, id string, ciphertextB64 string, ttl time.Duration) error
 	GetPaste(ctx context.Context, id string) (store.PasteRecord, error)
 	Ping(ctx context.Context) error
+	Subscribe(ctx context.Context, channel string) *redis.PubSub
+	Publish(ctx context.Context, channel, message string) error
 }
 
 // TTLPolicy clamps a caller-requested TTL to the server's configured bounds.
@@ -164,6 +169,18 @@ func (h *Handlers) UploadPaste(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish to Redis Pub/Sub for real-time recipients
+	if req.Recipient != "" {
+		eventPayload, err := json.Marshal(map[string]string{
+			"id":         id,
+			"ciphertext": req.Ciphertext,
+			"sender":     req.Sender,
+		})
+		if err == nil {
+			_ = h.Store.Publish(r.Context(), "stream:"+req.Recipient, string(eventPayload))
+		}
+	}
+
 	writeJSON(w, http.StatusCreated, uploadPasteResponse{ID: id})
 }
 
@@ -187,6 +204,49 @@ func (h *Handlers) FetchPaste(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.Logger.Error("fetching paste", "error", err, "id", id)
 		writeError(w, http.StatusServiceUnavailable, "relay storage unavailable")
+	}
+}
+
+// ---- GET /stream?handle={handle} -----------------------------------------
+
+func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
+	handle := r.URL.Query().Get("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle query parameter is required")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	// Subscribe to Redis channel: stream:<handle>
+	pubsub := h.Store.Subscribe(r.Context(), "stream:"+handle)
+	if pubsub == nil {
+		return
+	}
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
+			flusher.Flush()
+		}
 	}
 }
 
