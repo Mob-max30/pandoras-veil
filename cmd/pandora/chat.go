@@ -110,6 +110,11 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
+			// Strict 1-on-1 session isolation: drop messages from any sender other than the active recipient (*withFlag)
+			if msg.Sender != "" && !strings.EqualFold(msg.Sender, *withFlag) {
+				return
+			}
+
 			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
 			if err != nil {
 				// Silently skip corrupted or unaddressed messages
