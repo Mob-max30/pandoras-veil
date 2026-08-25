@@ -63,7 +63,7 @@ func (s *TUIState) SetInput(text string) {
 	s.render()
 }
 
-// ANSI Color Theme matching the reference screenshot
+// ANSI Color Theme matching reference screenshot
 const (
 	ThemeCyan    = "\033[38;2;0;210;255m"
 	ThemeGreen   = "\033[38;2;50;255;120m"
@@ -71,7 +71,6 @@ const (
 	ThemeDim     = "\033[38;2;110;120;140m"
 	ThemeWhite   = "\033[38;2;235;240;250m"
 	ThemeYellow  = "\033[38;2;255;215;0m"
-	ThemeDarkBg  = "\033[48;2;16;18;27m"
 	ThemeSelBg   = "\033[48;2;50;255;120m\033[38;2;16;18;27m\033[1m"
 )
 
@@ -109,86 +108,107 @@ func padTrunc(s string, w int) string {
 }
 
 func (s *TUIState) render() {
+	// 1. Detect dynamic terminal dimensions
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width < 80 || height < 20 {
-		width = 110
-		height = 30
+	if err != nil || width <= 0 || height <= 0 {
+		width, height, err = term.GetSize(int(os.Stdin.Fd()))
+		if err != nil || width <= 0 || height <= 0 {
+			width = 90
+			height = 25
+		}
 	}
 
-	// Dynamic column widths: Left (24%), Center (52%), Right (24%)
-	leftW := width * 23 / 100
-	if leftW < 22 {
-		leftW = 22
+	// Clamp to safe screen boundaries to prevent line-wrapping
+	if width < 70 {
+		width = 70
 	}
-	rightW := width * 25 / 100
-	if rightW < 24 {
-		rightW = 24
+	if height < 16 {
+		height = 16
+	}
+
+	// Column Widths strictly summing to width-2:
+	// leftW + 1 + centerW + 1 + rightW == width-2
+	leftW := width * 22 / 100
+	if leftW < 20 {
+		leftW = 20
+	}
+	rightW := width * 24 / 100
+	if rightW < 22 {
+		rightW = 22
 	}
 	centerW := width - leftW - rightW - 4
-	if centerW < 36 {
-		centerW = 36
+	if centerW < 24 {
+		centerW = 24
 	}
 
-	// Height breakdown
-	mainH := height - 7 // Top title (1) + gaps + bottom input box (4) + footer (1)
-	if mainH < 12 {
-		mainH = 12
+	// Height budget strictly fitting inside height - 1 to prevent scrolling
+	// Top Header (1) + Main Columns (mainH) + Input Top (1) + Input Body (1) + Input Bot (1) + Footer (1) = mainH + 5
+	mainH := height - 6
+	if mainH < 8 {
+		mainH = 8
 	}
 
 	var b strings.Builder
-	// Move cursor to top-left, hide cursor during draw
+	// Move cursor to home and hide cursor during screen refresh
 	b.WriteString("\033[H\033[?25l")
 
 	// -------------------------------------------------------------
-	// 1. TOP TITLE BAR
+	// 1. TOP TITLE BAR (1 Line)
 	// -------------------------------------------------------------
-	titleText := fmt.Sprintf("🔴 🟡 🟢   %sPANDORA'S VEIL%s  |  %s[ v1.2.5 ]%s Secure Channel - %sMain%s",
+	titleText := fmt.Sprintf("🔴 🟡 🟢   %sPANDORA'S VEIL%s | %s[ v1.2.5 ]%s Secure Channel - %sMain%s",
 		ThemeCyan+ColorBold, ColorReset,
 		ThemeGreen, ColorReset,
 		ThemeWhite+ColorBold, ColorReset,
 	)
-	b.WriteString(padCenter(titleText, width) + "\n\n")
+	b.WriteString(padCenter(titleText, width-2) + "\n")
 
 	// -------------------------------------------------------------
 	// 2. PREPARE LEFT COLUMN (DEVICE IDENTITY + CHANNELS)
 	// -------------------------------------------------------------
 	leftLines := make([]string, mainH)
-	box1H := 6
-	box2H := mainH - box1H - 1
+	box1H := 5
+	box2H := mainH - box1H
 
-	// Box 1: Device Identity
-	leftLines[0] = fmt.Sprintf("%s╭─ DEVICE IDENTITY %s╮%s", ThemeCyan, strings.Repeat("─", leftW-20), ColorReset)
+	// Box 1: Device Identity (5 lines)
+	leftLines[0] = fmt.Sprintf("%s╭─ DEVICE IDENTITY %s╮%s", ThemeCyan, strings.Repeat("─", maxInt(0, leftW-20)), ColorReset)
 	leftLines[1] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight("HOST: "+ThemeWhite+ColorBold+padTrunc(s.userHandle, leftW-9)+ColorReset, leftW-3), ThemeCyan, ColorReset)
-	leftLines[2] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight("FINGERPRINT:", leftW-3), ThemeCyan, ColorReset)
-	leftLines[3] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeYellow+padTrunc(s.userFP, leftW-3)+ColorReset, leftW-3), ThemeCyan, ColorReset)
+	leftLines[2] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight("FINGERPRINT: "+ThemeYellow+padTrunc(s.userFP, leftW-15)+ColorReset, leftW-3), ThemeCyan, ColorReset)
 	statusText := fmt.Sprintf("STATUS: %sONLINE%s %s(AES-256)%s", ThemeGreen+ColorBold, ColorReset, ThemeDim, ColorReset)
-	leftLines[4] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(statusText, leftW-3), ThemeCyan, ColorReset)
-	leftLines[5] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", leftW-2), ColorReset)
+	leftLines[3] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(statusText, leftW-3), ThemeCyan, ColorReset)
+	leftLines[4] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", maxInt(0, leftW-2)), ColorReset)
 
-	// Box 2: Channels / Contacts
-	if box2H > 4 {
-		leftLines[6] = fmt.Sprintf("%s╭─ CHANNELS %s╮%s", ThemeCyan, strings.Repeat("─", leftW-13), ColorReset)
-		leftLines[7] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Active Messages"+ColorReset, leftW-3), ThemeCyan, ColorReset)
-		activeMsgLine := fmt.Sprintf("  %s●%s %s", ThemeGreen, ColorReset, padTrunc(s.targetLabel, leftW-7))
-		leftLines[8] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(activeMsgLine, leftW-3), ThemeCyan, ColorReset)
-		leftLines[9] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Group Chats"+ColorReset, leftW-3), ThemeCyan, ColorReset)
+	// Box 2: Channels (remaining lines)
+	if box2H >= 4 {
+		leftLines[5] = fmt.Sprintf("%s╭─ CHANNELS %s╮%s", ThemeCyan, strings.Repeat("─", maxInt(0, leftW-13)), ColorReset)
+		leftLines[6] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Active Messages"+ColorReset, leftW-3), ThemeCyan, ColorReset)
+		activeMsgLine := fmt.Sprintf(" %s●%s %s", ThemeGreen, ColorReset, padTrunc(s.targetLabel, leftW-6))
+		leftLines[7] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(activeMsgLine, leftW-3), ThemeCyan, ColorReset)
 
-		activeChanName := "#Development"
-		if s.isGroup {
-			activeChanName = "#" + s.targetLabel
+		if box2H >= 6 {
+			leftLines[8] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Group Chats"+ColorReset, leftW-3), ThemeCyan, ColorReset)
+			activeChanName := "#Development"
+			if s.isGroup {
+				activeChanName = "#" + s.targetLabel
+			}
+			chanHighlight := fmt.Sprintf(" %s ●", padTrunc(activeChanName, leftW-6))
+			leftLines[9] = fmt.Sprintf("%s│%s%s%s│%s", ThemeCyan, ColorReset, ThemeSelBg+padRight(chanHighlight, leftW-2)+ColorReset, ThemeCyan, ColorReset)
 		}
-		chanHighlight := fmt.Sprintf(" %s ● ", padTrunc(activeChanName, leftW-8))
-		leftLines[10] = fmt.Sprintf("%s│%s%s%s│%s", ThemeCyan, ColorReset, ThemeSelBg+padRight(chanHighlight, leftW-2)+ColorReset, ThemeCyan, ColorReset)
-		
+
 		groupList := []string{"#Alpha_Team", "#Ops_Center", "#General"}
 		for i, gName := range groupList {
-			rowIdx := 11 + i
+			rowIdx := 10 + i
 			if rowIdx < mainH-1 {
-				gLine := fmt.Sprintf("  %s%s%s", ThemeDim, padTrunc(gName, leftW-5), ColorReset)
+				gLine := fmt.Sprintf(" %s%s%s", ThemeDim, padTrunc(gName, leftW-4), ColorReset)
 				leftLines[rowIdx] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(gLine, leftW-3), ThemeCyan, ColorReset)
 			}
 		}
-		leftLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", leftW-2), ColorReset)
+		// Fill empty lines
+		for r := 5; r < mainH-1; r++ {
+			if leftLines[r] == "" {
+				leftLines[r] = fmt.Sprintf("%s│%s%s%s│%s", ThemeCyan, ColorReset, strings.Repeat(" ", maxInt(0, leftW-2)), ThemeCyan, ColorReset)
+			}
+		}
+		leftLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", maxInt(0, leftW-2)), ColorReset)
 	}
 
 	// -------------------------------------------------------------
@@ -196,66 +216,76 @@ func (s *TUIState) render() {
 	// -------------------------------------------------------------
 	rightLines := make([]string, mainH)
 	
-	// Box 1: Policy Inspector
-	rightLines[0] = fmt.Sprintf("%s╭─ SECRET DEPOSIT & POLICY %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-28), ColorReset)
-	rightLines[1] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("POLICY: "+ThemeGreen+"BURST_MODE_ALPHA"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
-	rightLines[2] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+	// Box 1: Policy Inspector (3 lines)
+	rightLines[0] = fmt.Sprintf("%s╭─ SECRET DEPOSIT %s╮%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-19)), ColorReset)
+	rightLines[1] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("POLICY: "+ThemeGreen+"BURST_ALPHA"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
+	rightLines[2] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-2)), ColorReset)
 
-	// Box 2: Deposit Object & TTL
-	rightLines[3] = fmt.Sprintf("%s╭─ DEPOSIT OBJECT %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-19), ColorReset)
-	rightLines[4] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  "+ThemeWhite+ColorBold+"Auth_Key_74"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
-	rightLines[5] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  TTL EXPIRATION", rightW-3), ThemeMagenta, ColorReset)
-	ttlLine := fmt.Sprintf("  [ 60s | %s*%s*%s | 1h | 24h ]", ThemeGreen+ColorBold, s.ttlSetting, ColorReset)
-	rightLines[6] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(ttlLine, rightW-3), ThemeMagenta, ColorReset)
-	rightLines[7] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+	// Box 2: Deposit Object & TTL (5 lines)
+	if mainH >= 10 {
+		rightLines[3] = fmt.Sprintf("%s╭─ DEPOSIT OBJECT %s╮%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-19)), ColorReset)
+		rightLines[4] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(" "+ThemeWhite+ColorBold+"Auth_Key_74"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
+		ttlLine := fmt.Sprintf(" TTL: %s*%s*%s [24h]", ThemeGreen+ColorBold, s.ttlSetting, ColorReset)
+		rightLines[5] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(ttlLine, rightW-3), ThemeMagenta, ColorReset)
+		rightLines[6] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-2)), ColorReset)
+	}
 
-	// Box 3: Burn After Reading
-	rightLines[8] = fmt.Sprintf("%s╭─ BURN-AFTER-READING %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-23), ColorReset)
-	burnToggle := fmt.Sprintf("  Redis GETDEL   %s[===●]%s", ThemeGreen, ColorReset)
-	rightLines[9] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnToggle, rightW-3), ThemeMagenta, ColorReset)
-	burnState := fmt.Sprintf("  [ %s*%s*%s | OFF ]", ThemeGreen+ColorBold, s.burnSetting, ColorReset)
-	rightLines[10] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnState, rightW-3), ThemeMagenta, ColorReset)
-	rightLines[11] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+	// Box 3: Burn After Reading (4 lines)
+	if mainH >= 14 {
+		rightLines[7] = fmt.Sprintf("%s╭─ BURN-AFTER-READING %s╮%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-23)), ColorReset)
+		burnToggle := fmt.Sprintf(" Redis GETDEL  %s[===●]%s", ThemeGreen, ColorReset)
+		rightLines[8] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnToggle, rightW-3), ThemeMagenta, ColorReset)
+		burnState := fmt.Sprintf(" State: %s*%s*%s (Active)", ThemeGreen+ColorBold, s.burnSetting, ColorReset)
+		rightLines[9] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnState, rightW-3), ThemeMagenta, ColorReset)
+		rightLines[10] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-2)), ColorReset)
+	}
 
-	// Box 4: Key Metadata
-	if mainH > 16 {
-		rightLines[12] = fmt.Sprintf("%s╭─ KEY METADATA %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-17), ColorReset)
-		rightLines[13] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Created:   "+padTrunc(s.userHandle, rightW-14), rightW-3), ThemeMagenta, ColorReset)
-		rightLines[14] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Expires:   24 Hours", rightW-3), ThemeMagenta, ColorReset)
-		rightLines[15] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Recipient: "+padTrunc(s.targetLabel, rightW-14), rightW-3), ThemeMagenta, ColorReset)
-		rightLines[16] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Cipher:    AES-256", rightW-3), ThemeMagenta, ColorReset)
-		rightLines[17] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+	// Box 4: Key Metadata (remaining lines)
+	if mainH >= 17 {
+		rightLines[11] = fmt.Sprintf("%s╭─ KEY METADATA %s╮%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-17)), ColorReset)
+		rightLines[12] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(" Created: "+padTrunc(s.userHandle, rightW-12), rightW-3), ThemeMagenta, ColorReset)
+		rightLines[13] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(" Target:  "+padTrunc(s.targetLabel, rightW-12), rightW-3), ThemeMagenta, ColorReset)
+		rightLines[14] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(" Cipher:  AES-256", rightW-3), ThemeMagenta, ColorReset)
+		rightLines[15] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", maxInt(0, rightW-2)), ColorReset)
+	}
+
+	// Fill empty right lines
+	for r := 0; r < mainH; r++ {
+		if rightLines[r] == "" {
+			rightLines[r] = strings.Repeat(" ", rightW)
+		}
 	}
 
 	// -------------------------------------------------------------
 	// 4. PREPARE CENTER MAIN PANE (SPEECH BUBBLE MESSAGES)
 	// -------------------------------------------------------------
 	centerLines := make([]string, mainH)
-	centerLines[0] = fmt.Sprintf("%s╭─ CENTER MAIN PANE (Width: 55%%) %s╮%s", ThemeGreen, strings.Repeat("─", centerW-32), ColorReset)
+	centerHeader := fmt.Sprintf("╭─ CENTER MAIN PANE %s╮", strings.Repeat("─", maxInt(0, centerW-21)))
+	centerLines[0] = fmt.Sprintf("%s%s%s", ThemeGreen, centerHeader, ColorReset)
 
-	// Render speech bubble messages inside the center pane
+	// Render speech bubble messages
 	chatRowsAvailable := mainH - 2
 	var renderedBubbleLines []string
 
 	for _, msg := range s.messages {
 		if msg.IsOutgoing {
 			// Outgoing Bubble (Right Aligned, Green Border)
-			bubbleW := len(msg.Text) + 6
-			if bubbleW < 24 {
-				bubbleW = 24
+			bubbleW := len(msg.Text) + 4
+			if bubbleW < 18 {
+				bubbleW = 18
 			}
 			if bubbleW > centerW-4 {
 				bubbleW = centerW - 4
 			}
 			headerText := fmt.Sprintf("[%s] [YOU]", msg.Timestamp)
 			topBorder := fmt.Sprintf("╭%s%s%s%s╮",
-				strings.Repeat("─", bubbleW-len(headerText)-3),
+				strings.Repeat("─", maxInt(0, bubbleW-len(headerText)-2)),
 				ThemeDim, headerText, ThemeGreen,
 			)
 			bodyText := padRight(" "+msg.Text, bubbleW-2)
-			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", bubbleW-2))
+			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", maxInt(0, bubbleW-2)))
 
-			padLeftCount := centerW - bubbleW - 3
+			padLeftCount := centerW - bubbleW - 4
 			if padLeftCount < 0 {
 				padLeftCount = 0
 			}
@@ -265,22 +295,21 @@ func (s *TUIState) render() {
 			renderedBubbleLines = append(renderedBubbleLines, indent+ThemeGreen+"│"+ColorReset+ThemeWhite+bodyText+ThemeGreen+"│"+ColorReset)
 			renderedBubbleLines = append(renderedBubbleLines, indent+ThemeGreen+botBorder+ColorReset)
 		} else {
-			// Incoming Bubble (Left Aligned, Cyan/Dim Border)
-			bubbleW := len(msg.Text) + len(msg.Sender) + 12
-			if bubbleW < 26 {
-				bubbleW = 26
+			// Incoming Bubble (Left Aligned, Cyan Border)
+			bubbleW := len(msg.Text) + len(msg.Sender) + 8
+			if bubbleW < 20 {
+				bubbleW = 20
 			}
 			if bubbleW > centerW-4 {
 				bubbleW = centerW - 4
 			}
 			headerText := fmt.Sprintf("[%s] %s", msg.Timestamp, msg.Sender)
-			topBorder := fmt.Sprintf("╭%s%s%s %s%s╮",
+			topBorder := fmt.Sprintf("╭%s%s%s %s╮",
 				ThemeDim, headerText, ThemeCyan,
-				strings.Repeat("─", bubbleW-len(headerText)-4),
-				ThemeCyan,
+				strings.Repeat("─", maxInt(0, bubbleW-len(headerText)-3)),
 			)
 			bodyText := padRight(" "+msg.Text, bubbleW-2)
-			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", bubbleW-2))
+			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", maxInt(0, bubbleW-2)))
 
 			renderedBubbleLines = append(renderedBubbleLines, " "+ThemeCyan+topBorder+ColorReset)
 			renderedBubbleLines = append(renderedBubbleLines, " "+ThemeCyan+"│"+ColorReset+ThemeWhite+bodyText+ThemeCyan+"│"+ColorReset)
@@ -288,7 +317,7 @@ func (s *TUIState) render() {
 		}
 	}
 
-	// Slice visible bubble lines to fit center pane height
+	// Slice visible bubble lines
 	visibleBubbles := renderedBubbleLines
 	if len(visibleBubbles) > chatRowsAvailable {
 		visibleBubbles = visibleBubbles[len(visibleBubbles)-chatRowsAvailable:]
@@ -305,57 +334,65 @@ func (s *TUIState) render() {
 	// Fill empty center lines
 	for r := 1; r < mainH-1; r++ {
 		if centerLines[r] == "" {
-			centerLines[r] = fmt.Sprintf("%s│%s%s%s│%s", ThemeGreen, ColorReset, strings.Repeat(" ", centerW-2), ThemeGreen, ColorReset)
+			centerLines[r] = fmt.Sprintf("%s│%s%s%s│%s", ThemeGreen, ColorReset, strings.Repeat(" ", maxInt(0, centerW-2)), ThemeGreen, ColorReset)
 		}
 	}
-	centerLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeGreen, strings.Repeat("─", centerW-2), ColorReset)
+	centerLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeGreen, strings.Repeat("─", maxInt(0, centerW-2)), ColorReset)
 
 	// -------------------------------------------------------------
-	// 5. ASSEMBLE 3 COLUMNS ROW BY ROW
+	// 5. ASSEMBLE 3 COLUMNS ROW BY ROW (Exactly fitting width-2)
 	// -------------------------------------------------------------
 	for row := 0; row < mainH; row++ {
 		l := padRight(leftLines[row], leftW)
 		c := padRight(centerLines[row], centerW)
 		r := padRight(rightLines[row], rightW)
-		b.WriteString(fmt.Sprintf(" %s  %s  %s\n", l, c, r))
+		b.WriteString(fmt.Sprintf("%s %s %s\n", l, c, r))
 	}
 
 	// -------------------------------------------------------------
-	// 6. BOTTOM INPUT BOX & COMMAND PROMPT
+	// 6. BOTTOM INPUT BOX (3 Lines)
 	// -------------------------------------------------------------
 	chanLabel := "#Development"
 	if s.isGroup {
 		chanLabel = "#" + s.targetLabel
 	}
+	inputBoxW := width - 2
 	inputBoxTop := fmt.Sprintf("%s╭─ [ %s%s%s ] %s╮%s",
 		ThemeCyan, ThemeWhite+ColorBold, chanLabel, ThemeCyan,
-		strings.Repeat("─", width-len(chanLabel)-13), ColorReset,
+		strings.Repeat("─", maxInt(0, inputBoxW-len(chanLabel)-9)), ColorReset,
 	)
-	b.WriteString("\n " + inputBoxTop + "\n")
+	b.WriteString(inputBoxTop + "\n")
 
-	promptStr := fmt.Sprintf("pveil > ")
+	promptStr := "pveil > "
 	inputText := s.inputBuffer
-	maxInput := width - 14
-	if len(inputText) > maxInput {
+	maxInput := inputBoxW - 12
+	if len(inputText) > maxInput && maxInput > 0 {
 		inputText = inputText[len(inputText)-maxInput:]
 	}
-	inputLineContent := padRight(fmt.Sprintf(" %s%s%s%s", ThemeGreen+ColorBold, promptStr, ColorReset+ThemeWhite, inputText), width-4)
-	b.WriteString(fmt.Sprintf(" %s│%s%s%s│%s\n", ThemeCyan, ColorReset, inputLineContent, ThemeCyan, ColorReset))
-	b.WriteString(" " + fmt.Sprintf("%s╰%s╯%s\n", ThemeCyan, strings.Repeat("─", width-4), ColorReset))
+	inputBody := padRight(fmt.Sprintf(" %s%s%s%s", ThemeGreen+ColorBold, promptStr, ColorReset+ThemeWhite, inputText), inputBoxW-2)
+	b.WriteString(fmt.Sprintf("%s│%s%s%s│%s\n", ThemeCyan, ColorReset, inputBody, ThemeCyan, ColorReset))
+	b.WriteString(fmt.Sprintf("%s╰%s╯%s\n", ThemeCyan, strings.Repeat("─", maxInt(0, inputBoxW-2)), ColorReset))
 
 	// -------------------------------------------------------------
-	// 7. FOOTER SHORTCUT BAR
+	// 7. FOOTER SHORTCUT BAR (1 Line)
 	// -------------------------------------------------------------
-	shortcutBar := fmt.Sprintf(" %s[Tab]%s Switch Pane    %s[Ctrl+N]%s New Group    %s[Ctrl+S]%s Search    %s[Ctrl+K]%s SecDeposit    %s[Ctrl+Q]%s Exit",
+	shortcutBar := fmt.Sprintf(" %s[Tab]%s Switch   %s[Ctrl+N]%s Group   %s[Ctrl+S]%s Search   %s[Ctrl+K]%s Deposit   %s[Ctrl+Q]%s Exit",
 		ThemeCyan, ThemeDim,
 		ThemeCyan, ThemeDim,
 		ThemeCyan, ThemeDim,
 		ThemeCyan, ThemeDim,
 		ThemeCyan, ThemeDim,
 	)
-	b.WriteString(shortcutBar + "\033[?25h")
+	b.WriteString(padTrunc(shortcutBar, width-2) + "\033[?25h")
 
 	fmt.Fprint(s.out, b.String())
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func stripANSI(str string) string {
@@ -527,7 +564,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 	}
 
-	// 5. Enter Alternate Screen Buffer (Cyberpunk Dashboard Theme)
+	// 5. Enter Alternate Screen Buffer (Dedicated Full Screen)
 	fmt.Fprint(ui.Out, "\033[?1049h\033[2J\033[H")
 	defer fmt.Fprint(ui.Out, "\033[?1049l\033[?25h")
 
@@ -556,6 +593,13 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	state.render()
 
 	stopCh := make(chan struct{})
+	var closeOnce sync.Once
+	safeClose := func() {
+		closeOnce.Do(func() {
+			close(stopCh)
+		})
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -595,7 +639,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 
 	go func() {
 		<-sigCh
-		close(stopCh)
+		safeClose()
 		fmt.Fprint(ui.Out, "\033[?1049l\033[?25h")
 		os.Exit(0)
 	}()
@@ -610,7 +654,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 
 		if text == "/quit" || text == "/exit" {
-			close(stopCh)
+			safeClose()
 			return 0
 		}
 
@@ -663,6 +707,6 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		state.SetInput("")
 	}
 
-	close(stopCh)
+	safeClose()
 	return 0
 }
