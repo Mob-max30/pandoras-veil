@@ -171,7 +171,14 @@ func (h *Handlers) UploadPaste(w http.ResponseWriter, r *http.Request) {
 
 	// Publish to Redis Pub/Sub for real-time recipients
 	if req.Recipient != "" {
-		_ = h.Store.Publish(r.Context(), "stream:"+req.Recipient, req.Ciphertext)
+		eventPayload, err := json.Marshal(map[string]string{
+			"id":         id,
+			"ciphertext": req.Ciphertext,
+			"sender":     req.Sender,
+		})
+		if err == nil {
+			_ = h.Store.Publish(r.Context(), "stream:"+req.Recipient, string(eventPayload))
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, uploadPasteResponse{ID: id})

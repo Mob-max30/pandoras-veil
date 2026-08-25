@@ -67,6 +67,8 @@ type CreatePasteRequest struct {
 
 // PasteCreateRequest represents payload to store encrypted secret for CLI
 type PasteCreateRequest struct {
+	Recipient        string `json:"recipient,omitempty"`
+	Sender           string `json:"sender,omitempty"`
 	Ciphertext       string `json:"ciphertext"`
 	TTLSeconds       int    `json:"ttl_seconds"`
 	BurnAfterReading bool   `json:"burn_after_reading"`
@@ -424,6 +426,8 @@ func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (stri
 	}
 
 	reqBody := PasteCreateRequest{
+		Recipient:        recipient,
+		Sender:           sender,
 		Ciphertext:       b64Ciphertext,
 		TTLSeconds:       86400,
 		BurnAfterReading: false,
@@ -586,6 +590,8 @@ func (m *MockClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 func (m *MockClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
 	id := fmt.Sprintf("pv_%d", time.Now().UnixNano())
 	m.Pastes[id] = PasteCreateRequest{
+		Recipient:        recipient,
+		Sender:           sender,
 		Ciphertext:       ciphertext,
 		TTLSeconds:       86400,
 		BurnAfterReading: false,

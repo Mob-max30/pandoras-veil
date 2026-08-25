@@ -32,6 +32,7 @@ type lookupKeyResponse struct {
 type uploadPasteRequest struct {
 	Ciphertext       string `json:"ciphertext"` // base64-encoded bytes
 	Recipient        string `json:"recipient,omitempty"`
+	Sender           string `json:"sender,omitempty"`
 	TTLSeconds       *int   `json:"ttl_seconds,omitempty"`
 	BurnAfterReading bool   `json:"burn_after_reading"`
 }
