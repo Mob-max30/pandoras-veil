@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -211,18 +212,36 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				// Silently skip unaddressed/corrupted messages
 				return
 			}
+			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
 			timestamp := time.Now().Format("15:04:05")
 			senderName := msg.Sender
 			if senderName == "" {
 				senderName = recipientHandles[0]
 			}
 
-			// Left-aligned incoming bubble
-			incomingMsg := fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
-				ColorDim, timestamp, ColorReset,
-				ColorBold+ColorMagenta, senderName, ColorReset,
-				string(plaintext),
-			)
+			var incomingMsg string
+			if isFile {
+				_ = os.MkdirAll("./downloads", 0755)
+				savePath := filepath.Join("./downloads", filename)
+				if err := os.WriteFile(savePath, fileData, 0600); err == nil {
+					incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s 📁 [FILE RECEIVED] %s (%d bytes) -> Saved to %s",
+						ColorDim, timestamp, ColorReset,
+						ColorBold+ColorMagenta, senderName, ColorReset,
+						ColorYellow+filename+ColorReset, len(fileData), ColorCyan+savePath+ColorReset)
+				} else {
+					incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s 📁 [FILE RECEIVED] %s (%d bytes)",
+						ColorDim, timestamp, ColorReset,
+						ColorBold+ColorMagenta, senderName, ColorReset,
+						filename, len(fileData))
+				}
+			} else {
+				// Left-aligned incoming bubble
+				incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
+					ColorDim, timestamp, ColorReset,
+					ColorBold+ColorMagenta, senderName, ColorReset,
+					string(plaintext),
+				)
+			}
 
 			// Clear current line, print incoming message, and redraw prompt
 			fmt.Fprintf(ui.Out, "\r\033[K%s\n%s[%s] > %s", incomingMsg, ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
@@ -257,16 +276,39 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			return 0
 		}
 
-		// Encrypt message locally using age recipient-based encryption
+		// Encrypt message or file locally using age recipient-based encryption
 		var ciphertext []byte
-		if isGroup {
-			pubKeys := make([]string, len(members))
-			for i, m := range members {
-				pubKeys[i] = m.publicKey
+		var displayMsg string
+		if strings.HasPrefix(text, "/sendfile ") {
+			filePath := strings.TrimSpace(strings.TrimPrefix(text, "/sendfile "))
+			fileBytes, err := os.ReadFile(filePath)
+			if err != nil {
+				ui.Error("Failed to read file %s: %v", filePath, err)
+				promptPrompt()
+				continue
 			}
-			ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+			fn := filepath.Base(filePath)
+			displayMsg = fmt.Sprintf("📁 [FILE SENT] %s (%d bytes)", fn, len(fileBytes))
+			if isGroup {
+				pubKeys := make([]string, len(members))
+				for i, m := range members {
+					pubKeys[i] = m.publicKey
+				}
+				ciphertext, err = crypto.EncryptFilePayloadMulti(fn, fileBytes, pubKeys...)
+			} else {
+				ciphertext, err = crypto.EncryptFilePayload(fn, fileBytes, members[0].publicKey)
+			}
 		} else {
-			ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+			displayMsg = text
+			if isGroup {
+				pubKeys := make([]string, len(members))
+				for i, m := range members {
+					pubKeys[i] = m.publicKey
+				}
+				ciphertext, err = crypto.EncryptMulti([]byte(text), pubKeys...)
+			} else {
+				ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
+			}
 		}
 		if err != nil {
 			ui.Error("Encryption failed: %v", err)
@@ -289,7 +331,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		timestamp := time.Now().Format("15:04:05")
 
 		// Right-aligned outgoing bubble (WhatsApp style)
-		visibleLen := len(text) + len(timestamp) + 12
+		visibleLen := len(displayMsg) + len(timestamp) + 12
 		pad := chatWidth - visibleLen
 		if pad < 2 {
 			pad = 2
@@ -299,7 +341,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		// Move cursor up 1 line, clear it, and print right-aligned sent message
 		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[YOU]%s %s[%s]%s\n",
 			spaces,
-			ColorBold+ColorGreen, text, ColorReset,
+			ColorBold+ColorGreen, displayMsg, ColorReset,
 			ColorBold+ColorMagenta, ColorReset,
 			ColorDim, timestamp, ColorReset,
 		)

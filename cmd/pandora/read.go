@@ -112,12 +112,23 @@ func runRead(args []string, ui *UI, apiClient client.RelayClient) int {
 	// 4. Output Decrypted Secret
 	ui.Success("Decryption successful! (Authorized device key matched)")
 
-	if *saveFlag != "" {
-		if err := os.WriteFile(*saveFlag, plaintext, 0600); err != nil {
-			ui.Error("Failed to save secret to %s: %v", *saveFlag, err)
+	filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+
+	targetSavePath := *saveFlag
+	if isFile && targetSavePath == "" {
+		targetSavePath = filename
+	}
+
+	if targetSavePath != "" {
+		outBytes := plaintext
+		if isFile {
+			outBytes = fileData
+		}
+		if err := os.WriteFile(targetSavePath, outBytes, 0600); err != nil {
+			ui.Error("Failed to save file to %s: %v", targetSavePath, err)
 			return 1
 		}
-		ui.Success("Secret saved to %s (permissions 0600)", *saveFlag)
+		ui.Success("File recovered and saved to %s (%d bytes, 0600 permissions)", targetSavePath, len(outBytes))
 	} else {
 		fmt.Fprintf(ui.Out, "\n%s================ DECRYPTED SECRET ===============%s\n", ColorBold, ColorReset)
 		fmt.Fprintf(ui.Out, "%s\n", string(plaintext))

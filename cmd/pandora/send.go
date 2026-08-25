@@ -123,7 +123,13 @@ func runSend(args []string, ui *UI, apiClient client.RelayClient) int {
 
 	// 5. Local Device-Bound Encryption via age
 	ui.Info("Encrypting secret locally for recipient device key...")
-	ciphertext, err := crypto.Encrypt(plaintext, recipientPubKey)
+	var ciphertext []byte
+	var err error
+	if *fileFlag != "" {
+		ciphertext, err = crypto.EncryptFilePayload(*fileFlag, plaintext, recipientPubKey)
+	} else {
+		ciphertext, err = crypto.Encrypt(plaintext, recipientPubKey)
+	}
 	if err != nil {
 		ui.Error("Encryption failed: %v", err)
 		return 1

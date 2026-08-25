@@ -260,3 +260,40 @@ func TestEncryptMulti_MultipleRecipients(t *testing.T) {
 	}
 }
 
+// TEST 7: EncryptFilePayload preserves original filename and binary file data.
+func TestEncryptFilePayload_PreservesFilenameAndData(t *testing.T) {
+	devB, err := crypto.GenerateIdentity()
+	if err != nil {
+		t.Fatalf("failed to generate Device B identity: %v", err)
+	}
+	pubKeyB := crypto.GetPublicKey(devB)
+
+	originalFilename := "confidential_report.pdf"
+	originalBinaryData := []byte("%PDF-1.4 binary content header and data 1234567890")
+
+	// Encrypt binary file payload
+	ciphertext, err := crypto.EncryptFilePayload(originalFilename, originalBinaryData, pubKeyB)
+	if err != nil {
+		t.Fatalf("EncryptFilePayload failed: %v", err)
+	}
+
+	// Decrypt with authorized identity
+	decrypted, err := crypto.Decrypt(ciphertext, devB)
+	if err != nil {
+		t.Fatalf("Decrypt failed: %v", err)
+	}
+
+	// Decode file payload
+	recoveredFilename, recoveredData, isFile := crypto.DecodeFilePayload(decrypted)
+	if !isFile {
+		t.Fatal("expected isFile to be true")
+	}
+	if recoveredFilename != originalFilename {
+		t.Errorf("expected filename '%s', got '%s'", originalFilename, recoveredFilename)
+	}
+	if !bytes.Equal(recoveredData, originalBinaryData) {
+		t.Errorf("binary data mismatch")
+	}
+}
+
+
