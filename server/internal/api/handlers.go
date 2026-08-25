@@ -34,6 +34,7 @@ type Store interface {
 	Publish(ctx context.Context, channel, message string) error
 	PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error
 	GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error)
+	FlushAll(ctx context.Context) error
 }
 
 // TTLPolicy clamps a caller-requested TTL to the server's configured bounds.
@@ -353,3 +354,17 @@ func randomHandle() (string, error) {
 	}
 	return "veil-" + hex.EncodeToString(buf), nil
 }
+
+// FlushServer flushes all registered keys, pastes, and inboxes from the relay store.
+func (h *Handlers) FlushServer(w http.ResponseWriter, r *http.Request) {
+	if err := h.Store.FlushAll(r.Context()); err != nil {
+		h.Logger.Error("failed to flush store", "err", err)
+		writeError(w, http.StatusInternalServerError, "failed to flush store")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "cleared",
+		"message": "all keys, pastes, and offline inboxes cleared from server",
+	})
+}
+

@@ -113,6 +113,14 @@ func (f *fakeStore) GetAndClearInbox(_ context.Context, _, _ string) ([]string, 
 	return nil, nil
 }
 
+func (f *fakeStore) FlushAll(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.keys = make(map[string]store.KeyRecord)
+	f.pastes = make(map[string]string)
+	return nil
+}
+
 func newTestHandlers(fs *fakeStore) *Handlers {
 	return New(fs, TTLPolicy{Default: 15 * time.Minute, Min: 30 * time.Second, Max: 7 * 24 * time.Hour}, 2*1024*1024, slog.Default())
 }

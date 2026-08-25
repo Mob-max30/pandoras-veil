@@ -221,3 +221,16 @@ func (s *Store) GetAndClearInbox(ctx context.Context, recipient, sender string) 
 	return msgs, nil
 }
 
+// FlushAll deletes all pandora:* keys from Redis.
+func (s *Store) FlushAll(ctx context.Context) error {
+	keys, err := s.rdb.Keys(ctx, "pandora:*").Result()
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	if len(keys) > 0 {
+		return s.rdb.Del(ctx, keys...).Err()
+	}
+	return nil
+}
+
+
