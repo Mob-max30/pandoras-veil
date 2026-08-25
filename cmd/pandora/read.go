@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/Mob-max30/pandoras-veil/internal/client"
@@ -12,9 +13,13 @@ import (
 	"github.com/Mob-max30/pandoras-veil/internal/storage"
 )
 
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\[[0-9;]*m`)
+
 // extractPasteID parses a raw paste ID or a full URL
 func extractPasteID(input string) string {
+	input = ansiRegex.ReplaceAllString(input, "")
 	input = strings.TrimSpace(input)
+
 	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
 		u, err := url.Parse(input)
 		if err == nil {
