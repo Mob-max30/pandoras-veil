@@ -16,7 +16,7 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 	fs.SetOutput(ui.Out)
 
 	handleFlag := fs.String("handle", "", "Desired human-readable device handle (e.g. PV-ALICE)")
-	relayFlag := fs.String("relay", "http://localhost:8080", "Relay server URL")
+	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
 	pathFlag := fs.String("config", "", "Custom path for identity file (defaults to ~/.pandora/identity.json)")
 	forceFlag := fs.Bool("force", false, "Overwrite existing device identity if present")
 

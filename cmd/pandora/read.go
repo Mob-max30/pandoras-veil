@@ -33,7 +33,7 @@ func runRead(args []string, ui *UI, apiClient client.Client) int {
 	fs.SetOutput(ui.Out)
 
 	saveFlag := fs.String("save", "", "Path to save decrypted secret file (default: print to stdout)")
-	relayFlag := fs.String("relay", "http://localhost:8080", "Relay server URL")
+	relayFlag := fs.String("relay", "http://127.0.0.1:8080", "Relay server URL")
 	pathFlag := fs.String("config", "", "Custom path for local identity file")
 
 	fs.Usage = func() {
