@@ -293,6 +293,18 @@ func TestHandleStream_MissingHandle(t *testing.T) {
 	}
 }
 
+func TestHandleStream_SuccessWithMiddleware(t *testing.T) {
+	router := NewRouter(newTestHandlers(newFakeStore()))
+
+	rec := doRequest(t, router, "GET", "/stream?handle=alice", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); contentType != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream", contentType)
+	}
+}
+
 func mustDecode(t *testing.T, rec *httptest.ResponseRecorder, dst any) {
 	t.Helper()
 	if err := json.NewDecoder(rec.Body).Decode(dst); err != nil {
