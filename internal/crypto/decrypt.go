@@ -36,7 +36,11 @@ func Decrypt(ciphertext []byte, identity *age.X25519Identity) ([]byte, error) {
 
 	r, err := age.Decrypt(bytes.NewReader(raw), identity)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDecryptionFailed, err)
+		// Fallback to original ciphertext bytes in case base64 decode had false positive
+		r, err = age.Decrypt(bytes.NewReader(ciphertext), identity)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrDecryptionFailed, err)
+		}
 	}
 
 	plaintext, err := io.ReadAll(r)
