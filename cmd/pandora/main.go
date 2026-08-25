@@ -7,7 +7,7 @@ import (
 	"github.com/Mob-max30/pandoras-veil/internal/client"
 )
 
-const Version = "1.0.0-beta"
+const Version = "1.2.5"
 
 func printGlobalUsage(ui *UI) {
 	ui.Banner()
@@ -15,6 +15,7 @@ func printGlobalUsage(ui *UI) {
 	fmt.Fprintf(ui.Out, "  pv <command> [arguments] [options]\n")
 	fmt.Fprintf(ui.Out, "  (or: pandora <command> ...)\n\n")
 	fmt.Fprintf(ui.Out, "%sCOMMANDS:%s\n", ColorBold, ColorReset)
+	fmt.Fprintf(ui.Out, "  %srun%s       Launch local Cyberpunk Web Dashboard at http://localhost:8080\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sinit%s      Initialize local device cryptographic identity & register with relay\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %sidentity%s  Display this device's handle, public key, and fingerprint\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %ssend%s      Encrypt a secret locally and store encrypted envelope on relay\n", ColorGreen, ColorReset)
@@ -23,6 +24,7 @@ func printGlobalUsage(ui *UI) {
 	fmt.Fprintf(ui.Out, "  %sversion%s   Print version information\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "  %shelp%s      Show this help menu\n\n", ColorGreen, ColorReset)
 	fmt.Fprintf(ui.Out, "%sEXAMPLES:%s\n", ColorBold, ColorReset)
+	fmt.Fprintf(ui.Out, "  pv run\n")
 	fmt.Fprintf(ui.Out, "  pv init --handle PV-ALICE\n")
 	fmt.Fprintf(ui.Out, "  pv identity\n")
 	fmt.Fprintf(ui.Out, "  pv chat --with PV-BOB\n")
@@ -44,6 +46,8 @@ func main() {
 
 	var exitCode int
 	switch command {
+	case "run", "serve", "web":
+		exitCode = runWeb(args, ui, apiClient)
 	case "init":
 		exitCode = runInit(args, ui, apiClient)
 	case "identity", "id":
@@ -55,7 +59,7 @@ func main() {
 	case "chat":
 		exitCode = runChat(args, ui, apiClient)
 	case "version", "-v", "--version":
-		fmt.Fprintf(ui.Out, "Pandora's Veil CLI v%s\n", Version)
+		fmt.Fprintf(ui.Out, "Pandora's Veil v%s\n", Version)
 		exitCode = 0
 	case "help", "-h", "--help":
 		printGlobalUsage(ui)

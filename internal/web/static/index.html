@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PANDORA'S VEIL | Secure Channel Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top App Header -->
+        <header class="top-header">
+            <div class="window-controls">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+            </div>
+            <div class="app-title">
+                <span class="brand-title">PANDORA'S VEIL</span>
+                <span class="version-tag">[ v1.2.5 ]</span>
+                <span class="channel-mode">Secure Channel - <strong id="active-mode-title">Main</strong></span>
+            </div>
+            <div class="header-status">
+                <span class="pulse-indicator"></span>
+                <span class="relay-badge" id="relay-status">CLOUD RELAY: CONNECTED</span>
+            </div>
+        </header>
+
+        <!-- Main 3-Column Dashboard -->
+        <main class="dashboard-grid">
+            <!-- Left Column: Identity & Channels -->
+            <aside class="dashboard-col left-col">
+                <!-- Device Identity Box -->
+                <section class="cyber-card identity-card">
+                    <div class="card-header cyan-border">
+                        <span class="card-title">DEVICE IDENTITY</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="info-label">HOST:</span>
+                            <span class="info-value host-val" id="my-handle">LOADING...</span>
+                        </div>
+                        <div class="info-row vertical">
+                            <span class="info-label">FINGERPRINT:</span>
+                            <span class="info-value fp-val" id="my-fingerprint">---- ---- ---- ----</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">STATUS:</span>
+                            <span class="status-badge"><span class="green-dot"></span> ONLINE (AES-256)</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Channels / Direct Messages -->
+                <section class="cyber-card channels-card">
+                    <div class="card-header cyan-border">
+                        <span class="card-title">CHANNELS</span>
+                    </div>
+                    <div class="card-body scrollable-channels">
+                        <div class="channel-section-title">Active Messages</div>
+                        <ul class="channel-list" id="dm-list">
+                            <li class="channel-item active" data-type="dm" data-target="PV-PRANAV">
+                                <span class="online-indicator"></span>
+                                <span class="channel-name" id="current-peer-name">PV-PRANAV</span>
+                                <span class="active-badge">●</span>
+                            </li>
+                            <li class="channel-item" data-type="dm" data-target="PV-ALICE">
+                                <span class="online-indicator"></span>
+                                <span class="channel-name">PV-ALICE</span>
+                            </li>
+                            <li class="channel-item" data-type="dm" data-target="PV-BOB">
+                                <span class="online-indicator"></span>
+                                <span class="channel-name">PV-BOB</span>
+                            </li>
+                        </ul>
+
+                        <div class="channel-section-title mt-4">Group Chats</div>
+                        <ul class="channel-list" id="group-list">
+                            <li class="channel-item group-item active" data-type="group" data-target="Development">
+                                <span class="channel-hash">#</span>
+                                <span class="channel-name">Development</span>
+                                <span class="active-dot">●</span>
+                            </li>
+                            <li class="channel-item group-item" data-type="group" data-target="Alpha_Team">
+                                <span class="channel-hash">#</span>
+                                <span class="channel-name">Alpha_Team</span>
+                            </li>
+                            <li class="channel-item group-item" data-type="group" data-target="Ops_Center">
+                                <span class="channel-hash">#</span>
+                                <span class="channel-name">Ops_Center</span>
+                            </li>
+                            <li class="channel-item group-item" data-type="group" data-target="General">
+                                <span class="channel-hash">#</span>
+                                <span class="channel-name">General</span>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Center Column: Main Message Stream -->
+            <section class="dashboard-col center-col">
+                <div class="cyber-card main-chat-card green-border">
+                    <div class="card-header green-border flex-between">
+                        <span class="card-title" id="chat-header-title">CENTER MAIN PANE (Width: 55%)</span>
+                        <div class="session-security-badge">
+                            <span class="lock-icon">🔒</span> E2E ENCRYPTED (age/X25519)
+                        </div>
+                    </div>
+
+                    <!-- Chat Message Area -->
+                    <div class="chat-messages-container" id="chat-messages">
+                        <!-- Welcome / System Message Bubble -->
+                        <div class="speech-bubble incoming-bubble">
+                            <div class="bubble-header">
+                                <span class="bubble-time">[14:30]</span>
+                                <span class="bubble-sender cyan-text">Pandora System</span>
+                            </div>
+                            <div class="bubble-body">
+                                🔒 End-to-end encrypted session initialized. Zero-knowledge live stream active.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Secret Deposit & Policy Inspector -->
+            <aside class="dashboard-col right-col">
+                <!-- Secret Policy Inspector -->
+                <section class="cyber-card magenta-card">
+                    <div class="card-header magenta-border">
+                        <span class="card-title">SECRET DEPOSIT & POLICY</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="policy-status">
+                            POLICY: <span class="green-text bold">BURST_MODE_ALPHA</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Deposit Object & TTL Selector -->
+                <section class="cyber-card magenta-card">
+                    <div class="card-header magenta-border">
+                        <span class="card-title">DEPOSIT OBJECT</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="auth-key-badge" id="active-session-id">Auth_Key_74</div>
+                        <div class="ttl-label">TTL EXPIRATION</div>
+                        <div class="ttl-selector-grid">
+                            <button type="button" class="ttl-btn" data-ttl="60">60s</button>
+                            <button type="button" class="ttl-btn active" data-ttl="300">*300s*</button>
+                            <button type="button" class="ttl-btn" data-ttl="3600">1h</button>
+                            <button type="button" class="ttl-btn" data-ttl="86400">24h</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Burn-After-Reading Switch -->
+                <section class="cyber-card magenta-card">
+                    <div class="card-header magenta-border">
+                        <span class="card-title">BURN-AFTER-READING</span>
+                    </div>
+                    <div class="card-body flex-col">
+                        <div class="burn-toggle-row">
+                            <span class="burn-label">Redis GETDEL</span>
+                            <label class="switch">
+                                <input type="checkbox" id="burn-switch" checked>
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="burn-indicator-row">
+                            [ <span class="green-text bold" id="burn-status-text">*ON*</span> | OFF ]
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Key Metadata Inspector -->
+                <section class="cyber-card magenta-card metadata-card">
+                    <div class="card-header magenta-border">
+                        <span class="card-title">KEY METADATA</span>
+                    </div>
+                    <div class="card-body meta-body">
+                        <div class="meta-row">
+                            <span class="meta-k">Created:</span>
+                            <span class="meta-v" id="meta-created">PV-PRANAV ..</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-k">Expires:</span>
+                            <span class="meta-v" id="meta-expires">24 Hours</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-k">Recipient:</span>
+                            <span class="meta-v" id="meta-recipient">PV-PRANAV ..</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-k">Cipher:</span>
+                            <span class="meta-v">AES-256 (age)</span>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </main>
+
+        <!-- Bottom Input Box & Commands -->
+        <footer class="bottom-pane">
+            <div class="input-card cyan-border">
+                <div class="input-header cyan-text">
+                    <span class="input-tag" id="input-chan-tag">[ #Development ]</span>
+                </div>
+                <form id="message-form" class="message-form">
+                    <span class="prompt-prefix">pveil &gt;</span>
+                    <input type="text" id="chat-input" placeholder="Type a message or /help, /ttl, /burn, /deposit..." autocomplete="off" autofocus>
+                    <button type="submit" id="send-btn" class="send-action-btn">SEND ↵</button>
+                </form>
+            </div>
+
+            <!-- Footer Shortcut Bar -->
+            <div class="shortcuts-footer">
+                <button type="button" class="shortcut-pill" onclick="switchFocus()"><span class="shortcut-key">[Tab]</span> Switch Pane</button>
+                <button type="button" class="shortcut-pill" onclick="quickNewGroup()"><span class="shortcut-key">[Ctrl+N]</span> New Group</button>
+                <button type="button" class="shortcut-pill" onclick="quickDeposit()"><span class="shortcut-key">[Ctrl+K]</span> SecDeposit</button>
+                <button type="button" class="shortcut-pill" onclick="toggleBurnSetting()"><span class="shortcut-key">[Ctrl+B]</span> Toggle Burn</button>
+                <button type="button" class="shortcut-pill" onclick="openHelp()"><span class="shortcut-key">[?]</span> Commands Help</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modals for Shortcuts -->
+    <div id="modal-backdrop" class="modal-backdrop hidden">
+        <div class="modal-box cyber-card cyan-border" id="modal-container">
+            <div class="card-header cyan-border flex-between">
+                <span class="card-title" id="modal-title">MODAL TITLE</span>
+                <button type="button" class="close-modal-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="card-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

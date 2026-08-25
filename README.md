@@ -99,9 +99,32 @@ Device Identity (Verified on Relay):
 Security Tip: Share your Handle or Fingerprint out-of-band with senders to verify authenticity.
 ```
 
+### 4. Cyberpunk Local Web Dashboard (`pv run`)
+
+For users who prefer a modern browser graphical interface over the command line, Pandora's Veil includes a **built-in Cyberpunk 3-Column Web Dashboard**:
+
+```powershell
+pv run
+# or: pv serve
+```
+
+```text
+================================================================================
+  🌐 PANDORA'S VEIL WEB DASHBOARD RUNNING
+  👉 Local URL:  http://localhost:8080
+  🔒 Device:     PV-UJWAL (Fingerprint: BA64-5843)
+  ☁️  Relay:      https://pandoras-veil.onrender.com
+  ⚡ Zero-Knowledge E2E Encryption Active (age/X25519)
+================================================================================
+```
+
+- Automatically opens your default browser at `http://localhost:8080`.
+- **Zero-Knowledge Security**: Your device private key stays on your local machine—all encryption and decryption occur locally inside the native Go daemon before ciphertext is delivered to the cloud relay.
+- **3-Column Cyberpunk UI**: Device identity, channels & group chats, speech bubble conversation pane, secret deposit & policy inspector with animated toggles.
+
 ---
 
-### 4. Real-Time Encrypted Live Terminal Chat
+### 5. Real-Time Encrypted Live Terminal Chat
 
 Start an interactive, end-to-end encrypted chat with another user or group on the live cloud relay:
 
