@@ -288,7 +288,7 @@ function renderActiveConversation() {
     if (!state.activeTarget || state.contacts.length === 0) {
         chatMessagesContainerEl.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding-top: 120px; text-align:center; color:#78817d;">
-                <h3 style="font-family:var(--font-serif); font-size:1.6rem; color:var(--linen-card-green); margin-bottom:8px; font-weight:400;">Linen Secure Relay</h3>
+                <h3 style="font-family:var(--font-serif); font-size:1.6rem; color:var(--linen-card-green); margin-bottom:8px; font-weight:400;">Pandora's Veil</h3>
                 <p style="font-size:0.92rem; max-width:340px; color:#636765; line-height:1.5;">End-to-end encrypted zero-knowledge messaging. Choose or start a correspondence.</p>
                 <button class="linen-btn" style="margin-top:20px; padding:10px 22px; font-size:0.88rem;" onclick="openNewChatModal()">+ Start Conversation</button>
             </div>
