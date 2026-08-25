@@ -16,6 +16,65 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeChannel = '#Development';
   let activeTTL = 300;
   let isBurnActive = true;
+  let currentHostHandle = 'PV-DEVICE';
+  let currentFingerprint = '';
+
+  const hostHandleEl = document.getElementById('host-handle');
+  const hostFingerprintEl = document.getElementById('host-fingerprint');
+  const metaHostEl = document.getElementById('meta-host');
+  const changeHandleBtn = document.getElementById('change-handle-btn');
+
+  async function fetchIdentity() {
+    try {
+      const res = await fetch('/api/identity');
+      const data = await res.json();
+      if (data.initialized && data.handle) {
+        currentHostHandle = data.handle;
+        currentFingerprint = data.fingerprint || '';
+        updateIdentityUI();
+      } else {
+        promptForHandle();
+      }
+    } catch (e) {
+      console.warn('Identity API offline:', e);
+    }
+  }
+
+  function updateIdentityUI() {
+    if (hostHandleEl) hostHandleEl.textContent = currentHostHandle;
+    if (hostFingerprintEl) hostFingerprintEl.textContent = currentFingerprint || '🔒 Active';
+    if (metaHostEl) metaHostEl.textContent = currentHostHandle;
+  }
+
+  async function promptForHandle() {
+    const input = prompt('Enter your preferred device handle (e.g., PV-UJWAL):', currentHostHandle === 'PV-DEVICE' ? 'PV-USER' : currentHostHandle);
+    if (!input || !input.trim()) return;
+    let chosen = input.trim();
+    if (!chosen.toUpperCase().startsWith('PV-')) {
+      chosen = 'PV-' + chosen.toUpperCase();
+    }
+    try {
+      const res = await fetch('/api/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: chosen })
+      });
+      const data = await res.json();
+      if (data.success && data.handle) {
+        currentHostHandle = data.handle;
+        currentFingerprint = data.fingerprint || '';
+        updateIdentityUI();
+      }
+    } catch (e) {
+      alert('Failed to register handle: ' + e.message);
+    }
+  }
+
+  if (changeHandleBtn) {
+    changeHandleBtn.addEventListener('click', promptForHandle);
+  }
+
+  fetchIdentity();
 
   // In-Memory Per-Channel Message Store
   const channelHistories = {
