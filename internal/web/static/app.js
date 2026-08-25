@@ -30,7 +30,8 @@ const state = {
     activeTargetPK: '',
     isGroup: false,
     groupMembers: [],
-    convTTL: {},        // Main Disappearing TTL per conversation (default 300s)
+    defaultTTL: 300,     // Global default lifespan (default 300s / 5m)
+    convTTL: {},        // Main Disappearing TTL per conversation
     customMsgTTL: 0,    // 0 means inherit main TTL; >0 means independent custom TTL
     burnAfterReading: true,
     eventSource: null,
@@ -51,10 +52,12 @@ function loadPersistedData() {
         const savedConvs = localStorage.getItem('pandora_conversations_v6');
         const savedTarget = localStorage.getItem('pandora_active_target_v6');
         const savedTTL = localStorage.getItem('pandora_conv_ttl_v6');
+        const savedDefaultTTL = localStorage.getItem('pandora_default_ttl_v6');
 
         state.contacts = savedContacts ? JSON.parse(savedContacts) : [];
         state.conversations = savedConvs ? JSON.parse(savedConvs) : {};
         state.convTTL = savedTTL ? JSON.parse(savedTTL) : {};
+        state.defaultTTL = savedDefaultTTL ? parseInt(savedDefaultTTL, 10) : 300;
 
         if (savedTarget && state.contacts.some(c => c.handle === savedTarget)) {
             state.activeTarget = savedTarget;
@@ -67,6 +70,7 @@ function loadPersistedData() {
         state.contacts = [];
         state.conversations = {};
         state.convTTL = {};
+        state.defaultTTL = 300;
         state.activeTarget = '';
     }
 }
@@ -77,6 +81,7 @@ function savePersistedData() {
         localStorage.setItem('pandora_conversations_v6', JSON.stringify(state.conversations));
         localStorage.setItem('pandora_active_target_v6', state.activeTarget);
         localStorage.setItem('pandora_conv_ttl_v6', JSON.stringify(state.convTTL));
+        localStorage.setItem('pandora_default_ttl_v6', String(state.defaultTTL));
     } catch (e) {
         console.warn('Failed to save to localStorage:', e);
     }
@@ -298,25 +303,29 @@ function renderCorrespondenceSidebar() {
 }
 
 function getMainTTL(handle) {
-    if (!handle) return 300;
-    return state.convTTL[handle] || 300;
+    if (handle && state.convTTL[handle]) {
+        return state.convTTL[handle];
+    }
+    return state.defaultTTL || 300;
 }
 
 function updateMsgTTLBadge() {
     if (!currentMsgTtlBadgeEl) return;
-    if (state.customMsgTTL > 0) {
-        currentMsgTtlBadgeEl.textContent = formatTTL(state.customMsgTTL);
+    const mainTTL = getMainTTL(state.activeTarget);
+    const effective = state.customMsgTTL > 0 ? state.customMsgTTL : mainTTL;
+    currentMsgTtlBadgeEl.textContent = formatTTL(effective);
+    if (state.customMsgTTL > 0 && state.customMsgTTL !== mainTTL) {
         if (msgTtlBtnEl) msgTtlBtnEl.classList.add('active-custom');
     } else {
-        const mainTTL = getMainTTL(state.activeTarget);
-        currentMsgTtlBadgeEl.textContent = `Main (${formatTTL(mainTTL)})`;
         if (msgTtlBtnEl) msgTtlBtnEl.classList.remove('active-custom');
     }
 }
 
 function cycleMessageTTL() {
-    const options = [0, 30, 60, 300, 3600, 86400]; // 0 means default to main time
-    let idx = options.indexOf(state.customMsgTTL);
+    const options = [60, 300, 3600, 86400];
+    const mainTTL = getMainTTL(state.activeTarget);
+    const current = state.customMsgTTL > 0 ? state.customMsgTTL : mainTTL;
+    let idx = options.indexOf(current);
     if (idx === -1 || idx >= options.length - 1) {
         state.customMsgTTL = options[0];
     } else {
@@ -881,15 +890,20 @@ function applyConversationTTLFromModal() {
     }
     if (selected) {
         const val = parseInt(selected.value, 10) || 300;
+        state.defaultTTL = val;
         if (state.activeTarget) {
             state.convTTL[state.activeTarget] = val;
         }
+        state.customMsgTTL = 0; // reset message-specific override to match the newly applied main time
+
         // update top main TTL label
         if (topMainTtlLabelEl) {
             topMainTtlLabelEl.textContent = `${formatTTL(val)} Lifespan`;
         }
+
         savePersistedData();
         renderCorrespondenceSidebar();
+        updateMsgTTLBadge();
         closeModal();
     }
 }
