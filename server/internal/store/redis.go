@@ -122,6 +122,13 @@ func (s *Store) LookupKey(ctx context.Context, handle string) (KeyRecord, error)
 	}, nil
 }
 
+// DeleteKey removes a registered handle and public key mapping.
+func (s *Store) DeleteKey(ctx context.Context, handle string) error {
+	redisKey := keyPrefix + handle
+	return s.rdb.Del(ctx, redisKey).Err()
+}
+
+
 // ---- Paste lifecycle (TTL + burn-after-reading) ------------------------
 
 // PutPaste stores base64 ciphertext under a fresh ID with the given TTL and

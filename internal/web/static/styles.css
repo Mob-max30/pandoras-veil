@@ -1,0 +1,909 @@
+/* ==========================================================================
+   PANDORA'S VEIL — FULL-SCREEN MODULAR OBSIDIAN & EMERALD THEME
+   Divided into distinct blocks with increased gaps and border radius
+   ========================================================================== */
+
+:root {
+    --pv-bg-deep: #080b0e;
+    --pv-bg-app: #0d1116;
+    --pv-bg-sidebar-block: #12171d;
+    --pv-bg-card-hover: #192028;
+    --pv-bg-active-chat: #162524;
+    --pv-bg-input: #11161c;
+    --pv-border: #1e2630;
+    --pv-border-subtle: rgba(255, 255, 255, 0.05);
+
+    --pv-emerald: #10b981;
+    --pv-emerald-light: #34d399;
+    --pv-emerald-dark: #064e3b;
+    --pv-emerald-badge: #132b22;
+    --pv-emerald-glow: rgba(16, 185, 129, 0.35);
+
+    --pv-text-main: #f8fafc;
+    --pv-text-muted: #94a3b8;
+    --pv-text-dim: #64748b;
+    --pv-text-danger: #ef4444;
+
+    --pv-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --pv-font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body.pv-dark-theme {
+    background-color: var(--pv-bg-deep);
+    color: var(--pv-text-main);
+    font-family: var(--pv-font-sans);
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 16px;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Full Screen Outer Container */
+.pv-app-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Top Unboxed Header Row (No block, No border)
+   -------------------------------------------------------------------------- */
+.pv-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.pv-brand-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.pv-brand-icon {
+    width: 32px;
+    height: 32px;
+    background-color: var(--pv-emerald-badge);
+    color: var(--pv-emerald-light);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.pv-brand-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--pv-text-main);
+    letter-spacing: -0.2px;
+}
+
+.pv-top-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.pv-top-timer-btn {
+    background: transparent;
+    border: none;
+    color: var(--pv-text-muted);
+    padding: 6px 8px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.pv-top-timer-btn:hover {
+    color: var(--pv-emerald-light);
+}
+
+.pv-connection-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.84rem;
+    color: var(--pv-text-muted);
+}
+
+.pv-status-dot {
+    width: 7px;
+    height: 7px;
+    background-color: var(--pv-emerald);
+    border-radius: 50%;
+    box-shadow: 0 0 7px var(--pv-emerald-glow);
+}
+
+.pv-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--pv-text-dim);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.pv-icon-btn:hover {
+    color: var(--pv-text-main);
+    background: var(--pv-bg-card-hover);
+}
+
+/* --------------------------------------------------------------------------
+   Main Columns (Left Sidebar Blocks + Chat Window Block)
+   -------------------------------------------------------------------------- */
+.pv-main-columns {
+    flex: 1;
+    display: flex;
+    gap: 14px;
+    overflow: hidden;
+}
+
+/* Common Modular Block Style with Increased Rounded Corners */
+.pv-block {
+    background-color: var(--pv-bg-sidebar-block);
+    border: 1px solid var(--pv-border);
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Left Sidebar Column */
+.pv-sidebar-column {
+    width: 300px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+/* Block 1: Actions (New chat / New group) */
+.pv-block-actions {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pv-action-item {
+    background: transparent;
+    border: none;
+    color: var(--pv-text-main);
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    text-align: left;
+}
+
+.pv-action-item:hover {
+    background-color: var(--pv-bg-card-hover);
+}
+
+.pv-action-item svg {
+    color: var(--pv-text-muted);
+}
+
+/* Block 2: DIRECT Contacts */
+.pv-block-direct {
+    flex: 1.3;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Block 3: GROUPS */
+.pv-block-groups {
+    flex: 1;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pv-section-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--pv-text-dim);
+    letter-spacing: 0.8px;
+    padding: 0 6px;
+    margin-bottom: 8px;
+}
+
+.pv-section-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 2px;
+}
+
+.pv-section-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.pv-section-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+}
+
+/* Contact / Peer Card */
+.pv-contact-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.pv-contact-card:hover {
+    background-color: var(--pv-bg-card-hover);
+}
+
+.pv-contact-card.active {
+    background-color: var(--pv-bg-active-chat);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.pv-contact-card .card-avatar {
+    width: 28px;
+    height: 28px;
+    background-color: #1e293b;
+    color: var(--pv-text-muted);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pv-contact-card.active .card-avatar {
+    background-color: var(--pv-emerald-badge);
+    color: var(--pv-emerald-light);
+}
+
+.pv-contact-card .card-name {
+    flex: 1;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--pv-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pv-contact-card.active .card-name {
+    color: var(--pv-text-main);
+    font-weight: 600;
+}
+
+.pv-contact-card .card-dot {
+    width: 7px;
+    height: 7px;
+    background-color: var(--pv-emerald);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--pv-emerald-glow);
+    flex-shrink: 0;
+}
+
+/* Group Item */
+.pv-group-card {
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: var(--pv-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.pv-group-card:hover {
+    background-color: var(--pv-bg-card-hover);
+    color: var(--pv-text-main);
+}
+
+.pv-group-card.active {
+    background-color: var(--pv-bg-active-chat);
+    color: var(--pv-text-main);
+    font-weight: 600;
+}
+
+/* Block 4: Profile Block with Person Outline Icon */
+.pv-block-profile {
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.pv-block-profile:hover {
+    background-color: var(--pv-bg-card-hover);
+}
+
+.pv-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pv-person-outline-icon {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--pv-border);
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pv-text-muted);
+    background-color: var(--pv-bg-input);
+    flex-shrink: 0;
+}
+
+.pv-profile-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.pv-footer-label {
+    font-size: 0.72rem;
+    color: var(--pv-text-dim);
+}
+
+.pv-footer-fp {
+    font-family: var(--pv-font-mono);
+    font-size: 0.82rem;
+    color: var(--pv-text-muted);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------------------
+   Right Chatting Window Block (One Unified Block with 18px radius)
+   -------------------------------------------------------------------------- */
+.pv-chat-workspace {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--pv-bg-app);
+    overflow: hidden;
+}
+
+/* Workspace Header inside Chat Window */
+.pv-workspace-header {
+    height: 68px;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--pv-border);
+    background-color: var(--pv-bg-app);
+}
+
+.pv-contact-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.pv-contact-avatar {
+    width: 36px;
+    height: 36px;
+    background-color: var(--pv-emerald-badge);
+    color: var(--pv-emerald-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.94rem;
+    font-weight: 700;
+}
+
+.pv-contact-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pv-contact-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pv-text-main);
+}
+
+.pv-contact-status {
+    font-size: 0.78rem;
+    color: var(--pv-emerald-light);
+}
+
+/* Dropdown Menu */
+.pv-menu-dropdown-wrapper {
+    position: relative;
+}
+
+.pv-dropdown-menu {
+    position: absolute;
+    top: 36px;
+    right: 0;
+    background: var(--pv-bg-sidebar-block);
+    border: 1px solid var(--pv-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    width: 210px;
+    z-index: 100;
+}
+
+.pv-dropdown-item {
+    background: transparent;
+    border: none;
+    color: var(--pv-text-main);
+    padding: 9px 12px;
+    border-radius: 9px;
+    font-size: 0.86rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+}
+
+.pv-dropdown-item:hover {
+    background: var(--pv-bg-card-hover);
+}
+
+.pv-dropdown-item.pv-danger-text {
+    color: var(--pv-text-danger);
+}
+
+.pv-dropdown-item.pv-danger-text:hover {
+    background: rgba(239, 68, 68, 0.12);
+}
+
+/* Messages Canvas */
+.pv-messages-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+}
+
+.pv-messages-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pv-messages-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+}
+
+.pv-messages-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: auto;
+}
+
+/* Message Bubble Group */
+.pv-bubble-group {
+    display: flex;
+    flex-direction: column;
+    max-width: 68%;
+    animation: fadeIn 0.15s ease-out;
+}
+
+.pv-bubble-group.incoming {
+    align-self: flex-start;
+}
+
+.pv-bubble-group.outgoing {
+    align-self: flex-end;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pv-card-bubble {
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 0.94rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.pv-bubble-group.incoming .pv-card-bubble {
+    background-color: var(--pv-bg-sidebar-block);
+    color: var(--pv-text-main);
+    border: 1px solid var(--pv-border);
+}
+
+.pv-bubble-group.outgoing .pv-card-bubble {
+    background-color: var(--pv-bg-sidebar-block);
+    color: var(--pv-text-main);
+    border: 1px solid var(--pv-border);
+}
+
+.pv-bubble-meta {
+    font-size: 0.72rem;
+    color: var(--pv-text-dim);
+    margin-top: 5px;
+    margin-left: 4px;
+}
+
+/* File Attachment Card */
+.pv-file-card {
+    background-color: #11251e;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 320px;
+}
+
+.pv-file-icon-box {
+    width: 38px;
+    height: 38px;
+    background: #163e30;
+    color: var(--pv-emerald-light);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pv-file-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.pv-file-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--pv-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pv-file-size {
+    font-size: 0.76rem;
+    color: var(--pv-text-muted);
+}
+
+.pv-file-status {
+    font-size: 0.74rem;
+    color: var(--pv-emerald-light);
+    margin-top: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Bottom Input Dock with Separate Button Blocks
+   -------------------------------------------------------------------------- */
+.pv-input-dock {
+    padding: 16px 28px 22px 28px;
+    background-color: var(--pv-bg-app);
+}
+
+.pv-input-row-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+/* Attachment Outline Button (Separate Block) */
+.pv-outline-clip-btn {
+    background: transparent;
+    border: 1px solid var(--pv-border);
+    border-radius: 14px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pv-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.pv-outline-clip-btn:hover {
+    color: var(--pv-text-main);
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--pv-bg-sidebar-block);
+}
+
+/* Message Input Block (Separate Block with message timer badge) */
+.pv-input-block-box {
+    flex: 1;
+    background-color: var(--pv-bg-input);
+    border: 1px solid var(--pv-border);
+    border-radius: 14px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 16px;
+    gap: 10px;
+    transition: border-color 0.15s ease;
+}
+
+.pv-input-block-box:focus-within {
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.pv-input-block-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--pv-text-main);
+    font-size: 0.92rem;
+    font-family: var(--pv-font-sans);
+}
+
+.pv-input-block-box input::placeholder {
+    color: var(--pv-text-dim);
+}
+
+/* Message-specific Lifespan Badge Button */
+.pv-msg-timer-badge {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--pv-border);
+    color: var(--pv-text-muted);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.76rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.pv-msg-timer-badge:hover {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--pv-emerald-light);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.pv-msg-timer-badge.active-custom {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--pv-emerald-light);
+    border-color: var(--pv-emerald);
+}
+
+/* Send Button (Round Separate Button) */
+.pv-round-send-btn {
+    width: 48px;
+    height: 48px;
+    background-color: var(--pv-emerald-light);
+    border: none;
+    border-radius: 50%;
+    color: #080b0e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s ease, background-color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.pv-round-send-btn:hover {
+    background-color: #10b981;
+    transform: scale(1.04);
+}
+
+.pv-round-send-btn:active {
+    transform: scale(0.96);
+}
+
+/* --------------------------------------------------------------------------
+   Modals & Overlays
+   -------------------------------------------------------------------------- */
+.pv-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.pv-modal-card {
+    background-color: var(--pv-bg-sidebar-block);
+    border: 1px solid var(--pv-border);
+    border-radius: 18px;
+    width: 90%;
+    max-width: 440px;
+    padding: 24px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+}
+
+.pv-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.pv-modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--pv-text-main);
+}
+
+.pv-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--pv-text-dim);
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.pv-modal-close:hover {
+    color: var(--pv-text-main);
+}
+
+.pv-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* Device Initialization Screen */
+.pv-init-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--pv-bg-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.pv-init-card {
+    background-color: var(--pv-bg-sidebar-block);
+    border: 1px solid var(--pv-border);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+    padding: 34px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+}
+
+.pv-init-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+}
+
+.pv-init-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--pv-text-main);
+    text-align: center;
+    margin-top: 4px;
+}
+
+.pv-init-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pv-init-input-box input {
+    width: 100%;
+    height: 48px;
+    background-color: var(--pv-bg-input);
+    border: 1px solid var(--pv-border);
+    border-radius: 50px;
+    padding: 0 18px;
+    color: var(--pv-text-main);
+    font-size: 0.94rem;
+    font-family: var(--pv-font-sans);
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.pv-init-input-box input:focus {
+    border-color: var(--pv-emerald);
+}
+
+.pv-init-btn {
+    height: 48px;
+    background-color: var(--pv-emerald);
+    color: #ffffff;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.96rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.pv-init-btn:hover {
+    background-color: #059669;
+}
+
+.pv-error-box {
+    color: var(--pv-text-danger);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.hidden {
+    display: none !important;
+}

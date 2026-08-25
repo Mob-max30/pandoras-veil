@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,153 +24,142 @@ type groupMember struct {
 	fingerprint string
 }
 
-// runChat handles 'pandora chat' command for 1-on-1 and Group Chat
 func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
-	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
-	fs.SetOutput(ui.Out)
+	chatCmd := flag.NewFlagSet("chat", flag.ContinueOnError)
+	chatCmd.SetOutput(ui.Out)
 
-	withFlag := fs.String("with", "", "Recipient handle or comma-separated handles for group chat (e.g. PV-BOB or PV-BOB,PV-ALICE)")
-	groupFlag := fs.String("group", "", "Comma-separated group member handles (e.g. PV-BOB,PV-ALICE)")
-	relayFlag := fs.String("relay", client.DefaultRelayURL, "Relay server URL")
-	pathFlag := fs.String("config", "", "Custom path for local identity file")
+	withFlag := chatCmd.String("with", "", "Recipient handle or comma-separated handles for group chat")
+	groupFlag := chatCmd.String("group", "", "Alias for group members (comma-separated handles)")
+	relayFlag := chatCmd.String("relay", client.DefaultRelayURL, "Relay server base URL")
+	configFlag := chatCmd.String("config", "", "Path to identity file")
 
-	fs.Usage = func() {
-		fmt.Fprintf(ui.Out, "Usage: pandora chat --with <handle> [options]\n")
-		fmt.Fprintf(ui.Out, "   or: pandora chat --group <handle1,handle2> [options]\n\n")
-		fmt.Fprintf(ui.Out, "Starts a real-time, end-to-end encrypted live chat session (1-on-1 or Group).\n\n")
-		fmt.Fprintf(ui.Out, "Options:\n")
-		fs.PrintDefaults()
-	}
-
-	if err := fs.Parse(normalizeArgs(args)); err != nil {
+	if err := chatCmd.Parse(normalizeArgs(args)); err != nil {
 		return 1
 	}
 
-	targetHandlesStr := *withFlag
-	if targetHandlesStr == "" {
-		targetHandlesStr = *groupFlag
+	targetHandles := *withFlag
+	if targetHandles == "" && *groupFlag != "" {
+		targetHandles = *groupFlag
 	}
 
-	if targetHandlesStr == "" {
-		ui.Error("Recipient handle is required. Specify with --with <handle> or --group <handle1,handle2>")
-		fs.Usage()
-		return 1
-	}
-
-	// Parse recipient handles
-	var rawHandles []string
-	if strings.Contains(targetHandlesStr, ",") {
-		rawHandles = strings.Split(targetHandlesStr, ",")
-	} else {
-		rawHandles = []string{targetHandlesStr}
-	}
-
-	var recipientHandles []string
-	seen := make(map[string]bool)
-	for _, h := range rawHandles {
-		trimmed := strings.TrimSpace(h)
-		if trimmed != "" && !seen[strings.ToUpper(trimmed)] {
-			seen[strings.ToUpper(trimmed)] = true
-			recipientHandles = append(recipientHandles, trimmed)
+	// 1. Verify Local Identity
+	idPath := *configFlag
+	if idPath == "" {
+		var err error
+		idPath, err = storage.DefaultIdentityPath()
+		if err != nil {
+			ui.Error("Failed to get default identity path: %v", err)
+			return 1
 		}
 	}
 
-	if len(recipientHandles) == 0 {
-		ui.Error("No valid recipient handles specified.")
+	localIdFile, err := storage.LoadIdentity(idPath)
+	if err != nil || localIdFile.PrivateKey == "" {
+		ui.Error("Failed to load local device identity: %v", err)
+		ui.Warn("Run 'pv init' first to generate your device keypair.")
 		return 1
 	}
 
-	isGroup := len(recipientHandles) > 1
+	devIdentity, err := crypto.ParseIdentity(localIdFile.PrivateKey)
+	if err != nil {
+		ui.Error("Corrupt local private key: %v", err)
+		return 1
+	}
 
 	// If using real HTTP client, update base URL from flag
 	if httpCl, ok := apiClient.(*client.HTTPClient); ok && *relayFlag != "" {
 		httpCl.BaseURL = *relayFlag
 	}
 
-	// 1. Strict Server Health Check
-	if err := apiClient.Health(); err != nil {
-		ui.Error("SERVER OFFLINE: Cannot reach relay server at %s. Exiting.", *relayFlag)
-		return 1
-	}
-
-	// 2. Load Local Identity
-	localIdFile, err := storage.LoadIdentity(*pathFlag)
-	if err != nil {
-		ui.Error("Failed to load local device identity: %v", err)
-		ui.Info("Run 'pandora init' first to initialize your device.")
-		return 1
-	}
-
-	devIdentity, err := crypto.ParseIdentity(localIdFile.PrivateKey)
-	if err != nil {
-		ui.Error("Corrupted local private key: %v", err)
-		return 1
-	}
-
-	// Remove local user from recipient handles if included in group list
-	filteredHandles := make([]string, 0, len(recipientHandles))
-	for _, h := range recipientHandles {
-		if !strings.EqualFold(h, localIdFile.Handle) {
-			filteredHandles = append(filteredHandles, h)
+	// 2. Validate Peer / Group Handles
+	rawHandles := strings.Split(targetHandles, ",")
+	var recipientHandles []string
+	for _, h := range rawHandles {
+		trimmed := strings.TrimSpace(h)
+		if trimmed != "" && !strings.EqualFold(trimmed, localIdFile.Handle) {
+			recipientHandles = append(recipientHandles, trimmed)
 		}
 	}
-	if len(filteredHandles) == 0 {
-		ui.Error("Cannot start a chat session targeting only yourself.")
+
+	if len(recipientHandles) == 0 {
+		ui.Error("Missing target recipient. Usage: pv chat --with <HANDLE> or pv chat --group <H1,H2>")
 		return 1
 	}
-	recipientHandles = filteredHandles
-	isGroup = len(recipientHandles) > 1
 
-	// 3. Resolve All Recipient Keys & Fingerprints
+	isGroup := len(recipientHandles) > 1
+
+	// 3. Health & Public Keys
+	if err := apiClient.Health(); err != nil {
+		ui.Warn("Relay server health check warning: %v", err)
+	}
+
 	var members []groupMember
 	for _, handle := range recipientHandles {
-		ui.Info("Resolving recipient '%s' from relay...", handle)
-		info, err := apiClient.GetKey(handle)
+		keyInfo, err := apiClient.GetKey(handle)
 		if err != nil {
-			ui.Error("Failed to resolve recipient '%s': %v", handle, err)
+			ui.Error("Failed to fetch public key for '%s': %v", handle, err)
 			return 1
 		}
-		fp := info.Fingerprint
-		if fp == "" {
-			fp = crypto.ComputeFingerprint(info.PublicKey)
-		}
 		members = append(members, groupMember{
-			handle:      handle,
-			publicKey:   info.PublicKey,
-			fingerprint: fp,
+			handle:      keyInfo.Handle,
+			publicKey:   keyInfo.PublicKey,
+			fingerprint: keyInfo.Fingerprint,
 		})
 	}
 
-	// 4. Mandatory Fingerprint Verification Hard-Stop Upfront
+	// 4. Print Simple Clean Terminal Header
+	var targetTitle string
+	var fpDetails string
 	if isGroup {
-		fmt.Fprintf(ui.Out, "\n%s================ LIVE GROUP CHAT SECURITY VERIFICATION ================%s\n", ColorBold, ColorReset)
-		fmt.Fprintf(ui.Out, "  Your Handle:   %s%s%s (Fingerprint: %s)\n", ColorCyan, localIdFile.Handle, ColorReset, localIdFile.Fingerprint)
-		fmt.Fprintf(ui.Out, "  Group Members (%d):\n", len(members))
+		targetTitle = fmt.Sprintf("GROUP SESSION [%s]", strings.Join(recipientHandles, ", "))
+		var fpList []string
 		for _, m := range members {
-			fmt.Fprintf(ui.Out, "    • %s%s%s (Fingerprint: %s%s%s)\n", ColorCyan, m.handle, ColorReset, ColorYellow, m.fingerprint, ColorReset)
+			fpList = append(fpList, fmt.Sprintf("%s:%s", m.handle, m.fingerprint))
 		}
-		fmt.Fprintf(ui.Out, "%s========================================================================%s\n", ColorBold, ColorReset)
-		fmt.Fprintf(ui.Out, "%s[SECURITY CHECK]%s Verify that device fingerprints for ALL group members match.\n\n", ColorYellow, ColorReset)
-
-		promptText := fmt.Sprintf("Establish encrypted group chat session with %d member(s)?", len(members))
-		if !ui.PromptConfirm(promptText) {
-			ui.Error("Verification aborted by user. Group chat session terminated.")
-			return 1
-		}
+		fpDetails = strings.Join(fpList, " | ")
 	} else {
-		m := members[0]
-		fmt.Fprintf(ui.Out, "\n%s================ LIVE CHAT SECURITY VERIFICATION ===============%s\n", ColorBold, ColorReset)
-		fmt.Fprintf(ui.Out, "  Your Handle:           %s%s%s (Fingerprint: %s)\n", ColorCyan, localIdFile.Handle, ColorReset, localIdFile.Fingerprint)
-		fmt.Fprintf(ui.Out, "  Recipient Handle:      %s%s%s\n", ColorCyan, m.handle, ColorReset)
-		fmt.Fprintf(ui.Out, "  Recipient Fingerprint: %s%s%s\n", ColorYellow, m.fingerprint, ColorReset)
-		fmt.Fprintf(ui.Out, "  Target Public Key:     %s%s%s\n", ColorDim, m.publicKey, ColorReset)
-		fmt.Fprintf(ui.Out, "%s=================================================================%s\n", ColorBold, ColorReset)
-		fmt.Fprintf(ui.Out, "%s[SECURITY CHECK]%s Verify that the recipient's device fingerprint matches.\n\n", ColorYellow, ColorReset)
+		targetTitle = fmt.Sprintf("End-to-End Encrypted Session with %s", members[0].handle)
+		fpDetails = fmt.Sprintf("Device Fingerprint: [%s]", members[0].fingerprint)
+	}
 
-		promptText := fmt.Sprintf("Establish encrypted live session with %s (%s)?", m.handle, m.fingerprint)
-		if !ui.PromptConfirm(promptText) {
-			ui.Error("Verification aborted by user. Chat session terminated.")
-			return 1
+	fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
+	fmt.Fprintf(ui.Out, "  %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
+	fmt.Fprintf(ui.Out, "  %s%s%s | Zero Knowledge Relay Active\n", ColorYellow, fpDetails, ColorReset)
+	fmt.Fprintf(ui.Out, "  Type your message or /f to attach a file. Press [Enter] to send. Press [Ctrl+C] or /quit to exit.\n")
+	fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
+
+	var printMu sync.Mutex
+	prompt := fmt.Sprintf("%s[%s]%s > ", ColorCyan+ColorBold, localIdFile.Handle, ColorReset)
+
+	printLine := func(line string) {
+		printMu.Lock()
+		defer printMu.Unlock()
+		fmt.Fprintf(ui.Out, "\r\033[K%s\n%s", line, prompt)
+	}
+
+	// 5. Fetch Offline Inbox Messages
+	for _, target := range recipientHandles {
+		inboxEvents, err := apiClient.FetchInbox(localIdFile.Handle, target)
+		if err == nil && len(inboxEvents) > 0 {
+			for _, evt := range inboxEvents {
+				plaintext, err := crypto.Decrypt([]byte(evt.Ciphertext), devIdentity)
+				if err != nil {
+					continue
+				}
+				senderName := evt.Sender
+				if senderName == "" {
+					senderName = target
+				}
+				filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+				if isFile {
+					_ = os.MkdirAll("./downloads", 0755)
+					savePath := filepath.Join("./downloads", filename)
+					_ = os.WriteFile(savePath, fileData, 0600)
+					printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > [FILE RECEIVED] %s (%d bytes) -> %s", ColorDim, time.Now().Format("15:04:05"), ColorReset, ColorYellow+ColorBold, senderName, ColorReset, filename, len(fileData), savePath))
+				} else {
+					printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, time.Now().Format("15:04:05"), ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
+				}
+			}
 		}
 	}
 
@@ -219,96 +209,82 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 	}
 
+	// 6. Background Real-Time SSE Stream Listener
 	stopCh := make(chan struct{})
+	var closeOnce sync.Once
+	safeClose := func() {
+		closeOnce.Do(func() {
+			close(stopCh)
+		})
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	const chatWidth = 72
-
-	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
-			// Session isolation check: filter out messages from anyone outside active recipient list
-			isMember := false
-			for _, h := range recipientHandles {
-				if strings.EqualFold(msg.Sender, h) {
-					isMember = true
-					break
-				}
-			}
-			if msg.Sender != "" && !isMember {
-				return // Drop non-session messages
-			}
-
 			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
 			if err != nil {
-				// Silently skip unaddressed/corrupted messages
 				return
 			}
-			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
 			timestamp := time.Now().Format("15:04:05")
 			senderName := msg.Sender
 			if senderName == "" {
 				senderName = recipientHandles[0]
 			}
 
-			var incomingMsg string
+			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
 			if isFile {
 				_ = os.MkdirAll("./downloads", 0755)
 				savePath := filepath.Join("./downloads", filename)
-				if err := os.WriteFile(savePath, fileData, 0600); err == nil {
-					incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s 📁 [FILE RECEIVED] %s (%d bytes) -> Saved to %s",
-						ColorDim, timestamp, ColorReset,
-						ColorBold+ColorMagenta, senderName, ColorReset,
-						ColorYellow+filename+ColorReset, len(fileData), ColorCyan+savePath+ColorReset)
-				} else {
-					incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s 📁 [FILE RECEIVED] %s (%d bytes)",
-						ColorDim, timestamp, ColorReset,
-						ColorBold+ColorMagenta, senderName, ColorReset,
-						filename, len(fileData))
-				}
+				_ = os.WriteFile(savePath, fileData, 0600)
+				printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > [FILE RECEIVED] %s (%d bytes) -> %s", ColorDim, timestamp, ColorReset, ColorYellow+ColorBold, senderName, ColorReset, filename, len(fileData), savePath))
 			} else {
-				// Left-aligned incoming bubble
-				incomingMsg = fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
-					ColorDim, timestamp, ColorReset,
-					ColorBold+ColorMagenta, senderName, ColorReset,
-					string(plaintext),
-				)
+				printLine(fmt.Sprintf("%s[%s]%s %s[%s]%s > %s", ColorDim, timestamp, ColorReset, ColorYellow+ColorBold, senderName, ColorReset, string(plaintext)))
 			}
-
-			// Clear current line, print incoming message, and redraw prompt
-			fmt.Fprintf(ui.Out, "\r\033[K%s\n%s[%s] > %s", incomingMsg, ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
 		}, stopCh)
 	}()
 
-	// 7. Foreground Sender Loop (Right Aligned)
-	scanner := bufio.NewScanner(ui.In)
-	promptPrompt := func() {
-		fmt.Fprintf(ui.Out, "%s[%s] > %s", ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
-	}
-
-	promptPrompt()
-
 	go func() {
 		<-sigCh
-		close(stopCh)
-		fmt.Fprintf(ui.Out, "\n\n%s[i] Live chat session closed.%s\n", ColorYellow, ColorReset)
+		safeClose()
+		fmt.Fprintf(ui.Out, "\n%s[i] Session closed.%s\n", ColorDim, ColorReset)
 		os.Exit(0)
 	}()
 
+	// 7. Input Loop
+	fmt.Fprint(ui.Out, prompt)
+	scanner := bufio.NewScanner(ui.In)
 	for scanner.Scan() {
 		text := strings.TrimSpace(scanner.Text())
 		if text == "" {
-			promptPrompt()
+			fmt.Fprint(ui.Out, prompt)
 			continue
 		}
 
-		if text == "/quit" || text == "/exit" {
-			close(stopCh)
-			fmt.Fprintf(ui.Out, "%s[i] Live chat session ended.%s\n", ColorYellow, ColorReset)
+		if text == "/quit" || text == "/exit" || text == ":q" {
+			safeClose()
+			fmt.Fprintf(ui.Out, "%s[i] Chat session terminated.%s\n", ColorDim, ColorReset)
 			return 0
 		}
 
+		if text == "/help" {
+			printLine(fmt.Sprintf("%s[i] Available commands: /f (attach file) | /clear | /quit%s", ColorDim, ColorReset))
+			continue
+		}
+
+		if text == "/clear" {
+			printMu.Lock()
+			fmt.Fprint(ui.Out, "\033[2J\033[H")
+			fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
+			fmt.Fprintf(ui.Out, "  %sPANDORA LIVE RELAY%s | %s%s%s\n", ColorGreen+ColorBold, ColorReset, ColorBold, targetTitle, ColorReset)
+			fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
+			fmt.Fprint(ui.Out, prompt)
+			printMu.Unlock()
+			continue
+		}
+
+		// Handle file attachments (/f or /file or /sendfile)
 		isFileCmd := false
 		var filePath string
 
@@ -316,11 +292,10 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			isFileCmd = true
 			filePath = openNativeFileDialog(ui)
 			if filePath == "" {
-				ui.Info("File attachment cancelled.")
-				promptPrompt()
+				printLine("[i] File attachment cancelled.")
 				continue
 			}
-		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/attach ") || strings.HasPrefix(text, "/sendfile ") {
+		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/sendfile ") {
 			isFileCmd = true
 			parts := strings.SplitN(text, " ", 2)
 			if len(parts) > 1 {
@@ -328,18 +303,17 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			}
 		}
 
-		// Encrypt message or file locally using age recipient-based encryption
 		var ciphertext []byte
 		var displayMsg string
+
 		if isFileCmd {
 			fileBytes, err := os.ReadFile(filePath)
 			if err != nil {
-				ui.Error("Failed to read file %s: %v", filePath, err)
-				promptPrompt()
+				printLine(fmt.Sprintf("%s[!] Failed to read file %s: %v%s", ColorRed, filePath, err, ColorReset))
 				continue
 			}
 			fn := filepath.Base(filePath)
-			displayMsg = fmt.Sprintf("📁 [FILE SENT] %s (%d bytes)", fn, len(fileBytes))
+			displayMsg = fmt.Sprintf("[FILE SENT] %s (%d bytes)", fn, len(fileBytes))
 			if isGroup {
 				pubKeys := make([]string, len(members))
 				for i, m := range members {
@@ -361,56 +335,39 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
 			}
 		}
+
 		if err != nil {
-			ui.Error("Encryption failed: %v", err)
-			promptPrompt()
+			printLine(fmt.Sprintf("%s[!] Encryption failed: %v%s", ColorRed, err, ColorReset))
 			continue
 		}
 
-		// Send live message envelope(s) to relay
+		// Post to relay
 		if isGroup {
 			_, err = apiClient.PostGroupChatMessage(recipientHandles, localIdFile.Handle, string(ciphertext))
 		} else {
 			_, err = apiClient.PostChatMessage(recipientHandles[0], localIdFile.Handle, string(ciphertext))
 		}
+
 		if err != nil {
-			ui.Error("Delivery failed: %v", err)
-			promptPrompt()
+			printLine(fmt.Sprintf("%s[!] Delivery failed: %v%s", ColorRed, err, ColorReset))
 			continue
 		}
 
+		// Print outgoing message cleanly
 		timestamp := time.Now().Format("15:04:05")
-
-		// Right-aligned outgoing bubble (WhatsApp style)
-		visibleLen := len(displayMsg) + len(timestamp) + 12
-		pad := chatWidth - visibleLen
-		if pad < 2 {
-			pad = 2
-		}
-		spaces := strings.Repeat(" ", pad)
-
-		// Move cursor up 1 line, clear it, and print right-aligned sent message
-		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[YOU]%s %s[%s]%s\n",
-			spaces,
-			ColorBold+ColorGreen, displayMsg, ColorReset,
-			ColorBold+ColorMagenta, ColorReset,
-			ColorDim, timestamp, ColorReset,
-		)
-
-		promptPrompt()
+		printLine(fmt.Sprintf("%s[%s]%s %s[YOU]%s > %s%s%s", ColorDim, timestamp, ColorReset, ColorGreen+ColorBold, ColorReset, ColorGreen, displayMsg, ColorReset))
 	}
 
-	close(stopCh)
+	safeClose()
 	return 0
 }
 
-// openNativeFileDialog launches native Windows File Explorer GUI file picker dialog
 func openNativeFileDialog(ui *UI) string {
-	ui.Info("Opening File Explorer window... Select any image, document, or media file.")
+	ui.Info("Opening file dialog...")
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", `
 		Add-Type -AssemblyName System.Windows.Forms
 		$dialog = New-Object System.Windows.Forms.OpenFileDialog
-		$dialog.Title = "Select File / Media to Encrypt & Send - Pandora's Veil"
+		$dialog.Title = "Select File to Encrypt & Send - Pandora's Veil"
 		$dialog.Filter = "All Files (*.*)|*.*|Images (*.png;*.jpg;*.jpeg;*.gif)|*.png;*.jpg;*.jpeg;*.gif|Documents (*.pdf;*.docx;*.txt)|*.pdf;*.docx;*.txt|Media (*.mp4;*.mp3;*.zip)|*.mp4;*.mp3;*.zip"
 		if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 			Write-Output $dialog.FileName
@@ -422,4 +379,3 @@ func openNativeFileDialog(ui *UI) string {
 	}
 	return strings.TrimSpace(string(out))
 }
-
