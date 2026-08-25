@@ -183,7 +183,7 @@ async function handleInitSubmit(e) {
 
     initErrorMsgEl.classList.add('hidden');
     initSubmitBtnEl.disabled = true;
-    initSubmitBtnEl.textContent = 'Generating X25519 Keypair...';
+    initSubmitBtnEl.textContent = 'Initializing...';
 
     try {
         const token = getAuthToken();
@@ -216,13 +216,13 @@ async function handleInitSubmit(e) {
             initErrorMsgEl.textContent = data.error || 'Failed to initialize device.';
             initErrorMsgEl.classList.remove('hidden');
             initSubmitBtnEl.disabled = false;
-            initSubmitBtnEl.textContent = 'Initialize Device & Keypair';
+            initSubmitBtnEl.textContent = 'Initialize';
         }
     } catch (err) {
         initErrorMsgEl.textContent = `Network error: ${err.message}`;
         initErrorMsgEl.classList.remove('hidden');
         initSubmitBtnEl.disabled = false;
-        initSubmitBtnEl.textContent = 'Initialize Device & Keypair';
+        initSubmitBtnEl.textContent = 'Initialize';
     }
 }
 
