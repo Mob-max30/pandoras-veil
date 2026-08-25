@@ -13,10 +13,13 @@
     <div class="linen-app-container">
         <!-- Left Forest Green Sidebar -->
         <aside class="linen-sidebar">
-            <!-- Brand Title Row -->
+            <!-- Brand Title Row with Full Name -->
             <div class="sidebar-brand-row">
-                <h1 class="brand-logo" onclick="toggleProfileModal()" title="View Device Security Credentials">Pandora</h1>
-                <span class="brand-gold-dot" title="Online"></span>
+                <h1 class="brand-logo" onclick="toggleProfileModal()" title="View Device Security Credentials">Pandora's Veil</h1>
+                <button type="button" class="add-correspondence-btn" onclick="openNewChatModal()" title="Add Correspondence or Create Group">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Add</span>
+                </button>
             </div>
 
             <!-- Search Correspondence Box -->
@@ -29,17 +32,17 @@
 
             <!-- Dynamic Conversation List -->
             <div class="correspondence-list" id="chats-list">
-                <!-- Dynamically populated from local persistent connection history -->
+                <!-- Populated dynamically from verified server connections -->
             </div>
 
             <!-- Bottom User Identity Badge -->
-            <div class="sidebar-user-footer" onclick="toggleProfileModal()">
+            <div class="sidebar-user-footer" onclick="toggleProfileModal()" title="Click to view full identity credentials & account settings">
                 <div class="footer-avatar" id="my-avatar">U</div>
                 <div class="footer-user-details">
-                    <div class="footer-handle" id="my-handle">PV-UJWAL</div>
-                    <div class="footer-fp" id="my-fingerprint">FP: BA64-5843</div>
+                    <div class="footer-handle" id="my-handle">PV-USER</div>
+                    <div class="footer-fp" id="my-fingerprint">FP: PENDING</div>
                 </div>
-                <button type="button" class="icon-action-btn" onclick="event.stopPropagation(); openNewChatModal();" title="Start New Conversation">
+                <button type="button" class="icon-action-btn" onclick="event.stopPropagation(); openNewChatModal();" title="Add Correspondence">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
@@ -49,27 +52,28 @@
         <main class="linen-chat-workspace">
             <!-- Workspace Header -->
             <header class="workspace-header">
-                <div class="contact-profile-section" onclick="openContactDetailsModal()">
-                    <div class="avatar avatar-sand" id="active-header-avatar">P</div>
+                <div class="contact-profile-section" onclick="openContactDetailsModal()" title="View peer identity & fingerprint details">
+                    <div class="avatar avatar-sand" id="active-header-avatar">—</div>
                     <div class="contact-title-group">
-                        <h2 class="active-contact-title" id="active-contact-title">PV-PRANAV</h2>
+                        <h2 class="active-contact-title" id="active-contact-title">No Active Correspondence</h2>
                         <div class="active-status-line">
-                            <span class="status-dot"></span>
-                            <span id="active-status-text">Active now</span>
-                            <span class="fp-subtle" id="active-fp-subtle">• 1E42-2834</span>
+                            <span id="active-status-text">Connected to Relay</span>
+                            <span class="fp-subtle" id="active-fp-subtle"></span>
                         </div>
                     </div>
                 </div>
 
                 <div class="workspace-header-actions">
-                    <button type="button" class="header-action-btn" onclick="openSecretDepositModal()" title="Attach Secret / Self-Destructing Deposit (GETDEL)">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <button type="button" class="header-action-btn" onclick="openSecretDepositModal()" title="Attach Confidential Deposit (Self-Destructing via Redis GETDEL)">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <span class="action-label-text">Deposit Secret</span>
                     </button>
-                    <button type="button" class="header-action-btn" onclick="openDisappearingModal()" title="Disappearing Messages Timer">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <button type="button" class="header-action-btn" onclick="openDisappearingModal()" title="Configure Disappearing Messages Lifespan">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span class="action-label-text" id="header-ttl-label">5m Lifespan</span>
                     </button>
-                    <button type="button" class="header-action-btn" onclick="openContactDetailsModal()" title="Correspondence Details">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="5" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="19" cy="12" r="1.5"></circle></svg>
+                    <button type="button" class="header-action-btn" onclick="openContactDetailsModal()" title="Peer Identity & Manage Correspondence">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                     </button>
                 </div>
             </header>
@@ -77,7 +81,6 @@
             <!-- Scrollable Messages Flow on Linen Canvas -->
             <div class="chat-canvas-scroll" id="chat-messages-scroll">
                 <div class="canvas-flow" id="chat-messages-container">
-                    <!-- Centered Dotted Today Separator -->
                     <div class="linen-date-separator">
                         <span class="sep-line"></span>
                         <span class="sep-label">TODAY</span>
@@ -89,11 +92,18 @@
             <!-- Bottom Floating Pill Input Bar -->
             <footer class="workspace-input-dock">
                 <form id="message-form" class="linen-input-pill">
-                    <button type="button" class="pill-clip-btn" onclick="openSecretDepositModal()" title="Attach Secret (Redis GETDEL)">
+                    <button type="button" class="pill-clip-btn" onclick="openSecretDepositModal()" title="Deposit Confidential Secret (Destroyed on First Read)">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                     </button>
-                    <input type="text" id="chat-input" placeholder="Write a message" autocomplete="off" autofocus>
-                    <button type="submit" class="pill-send-btn" id="send-button" title="Send encrypted message">
+
+                    <!-- Per-Message Lifespan Adjustment Pill -->
+                    <button type="button" class="message-ttl-pill" onclick="cycleMessageTTL()" id="message-ttl-btn" title="Message Lifespan: Click to change timer for this message (cannot exceed conversation limit)">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span id="current-msg-ttl-badge">5m</span>
+                    </button>
+
+                    <input type="text" id="chat-input" placeholder="Write an encrypted message..." autocomplete="off" autofocus>
+                    <button type="submit" class="pill-send-btn" id="send-button" title="Send end-to-end encrypted message">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                     </button>
                 </form>
@@ -105,32 +115,31 @@
     <div id="modal-backdrop" class="linen-modal-backdrop hidden" onclick="handleBackdropClick(event)">
         <div class="linen-modal-card" onclick="event.stopPropagation()">
             <div class="modal-header-bar">
-                <h3 id="modal-title">Correspondence Details</h3>
+                <h3 id="modal-title">Details</h3>
                 <button type="button" class="modal-close-btn" onclick="closeModal()">✕</button>
             </div>
             <div class="modal-content-area" id="modal-body"></div>
         </div>
     </div>
 
-    <!-- Device Initialization Screen (Displayed when identity is not yet initialized) -->
+    <!-- Device Initialization Screen -->
     <div id="init-overlay" class="linen-init-overlay hidden">
         <div class="linen-init-card">
             <div class="init-brand-header">
-                <h1 class="init-brand-logo">Pandora</h1>
-                <span class="brand-gold-dot"></span>
+                <h1 class="init-brand-logo">Pandora's Veil</h1>
             </div>
             <h2 class="init-card-title">Initialize Cryptographic Device</h2>
             <p class="init-card-subtitle">
-                Welcome to Pandora's Veil. Create your device handle to generate your local X25519 cryptographic keypair.
+                Create your device handle to generate your local X25519 cryptographic keypair and register with the relay server.
             </p>
 
             <form id="init-form" class="init-form-box" onsubmit="handleInitSubmit(event)">
-                <label for="init-handle-input" class="init-field-label">Choose Device Handle:</label>
+                <label for="init-handle-input" class="init-field-label">Device Handle:</label>
                 <div class="init-input-wrapper">
-                    <input type="text" id="init-handle-input" placeholder="e.g. PV-UJWAL" required autofocus autocomplete="off">
+                    <input type="text" id="init-handle-input" placeholder="e.g. UJWAL or PV-ALICE" required autofocus autocomplete="off">
                 </div>
                 <div class="init-info-box">
-                    Private keys are generated in the local Go daemon and securely stored in <code>~/.pandora/identity.json</code> (0600 permissions). Zero-knowledge relay active.
+                    Your private key will be generated by the native Go daemon and stored securely at <code>~/.pandora/identity.json</code> (0600 permissions). Zero in-browser crypto.
                 </div>
                 <div id="init-error-msg" class="init-error-text hidden"></div>
                 <button type="submit" class="init-submit-btn" id="init-submit-button">

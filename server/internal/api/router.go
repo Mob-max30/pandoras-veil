@@ -13,6 +13,7 @@ func NewRouter(h *Handlers) http.Handler {
 
 	mux.HandleFunc("POST /keys", h.RegisterKey)
 	mux.HandleFunc("GET /keys/{handle}", h.LookupKey)
+	mux.HandleFunc("DELETE /keys/{handle}", h.DeleteKey)
 	mux.HandleFunc("POST /paste", h.UploadPaste)
 	mux.HandleFunc("GET /paste/{id}", h.FetchPaste)
 	mux.HandleFunc("GET /stream", h.HandleStream)

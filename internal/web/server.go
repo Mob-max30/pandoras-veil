@@ -67,6 +67,8 @@ func (s *Server) Routes() http.Handler {
 	// 3. Local Security Bridge APIs (All Protected by Host/Origin & Token checks)
 	mux.HandleFunc("/api/identity", s.handleIdentity)
 	mux.HandleFunc("/api/init", s.handleInit)
+	mux.HandleFunc("/api/lookup", s.handleLookup)
+	mux.HandleFunc("/api/delete-account", s.handleDeleteAccount)
 	mux.HandleFunc("/api/send", s.handleSend)
 	mux.HandleFunc("/api/stream", s.handleStream)
 	mux.HandleFunc("/api/deposit", s.handleDeposit)
@@ -199,11 +201,6 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"Handle cannot be empty"}`, http.StatusBadRequest)
 		return
 	}
-	if !strings.HasPrefix(strings.ToUpper(handle), "PV-") {
-		handle = "PV-" + strings.ToUpper(handle)
-	} else {
-		handle = strings.ToUpper(handle)
-	}
 
 	// Generate X25519 identity in Go daemon
 	devIdentity, err := crypto.GenerateIdentity()
@@ -235,6 +232,56 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 		"handle":      handle,
 		"fingerprint": fp,
 		"publicKey":   pubKey,
+	})
+}
+
+func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	handle := strings.TrimSpace(r.URL.Query().Get("handle"))
+	if handle == "" {
+		http.Error(w, `{"error":"Handle query parameter is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	info, err := s.apiClient.GetKey(handle)
+	if err != nil || info == nil || info.PublicKey == "" {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": fmt.Sprintf("User '%s' does not exist on the relay server. Make sure they have initialized their device first.", handle),
+		})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"handle":      info.Handle,
+		"publicKey":   info.PublicKey,
+		"fingerprint": info.Fingerprint,
+	})
+}
+
+func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idFile, err := storage.LoadIdentity(s.configDir)
+	if err == nil && idFile != nil && idFile.Handle != "" {
+		_ = s.apiClient.DeleteKey(idFile.Handle)
+	}
+
+	idPath := s.configDir
+	if idPath == "" {
+		idPath, _ = storage.DefaultIdentityPath()
+	}
+	if idPath != "" {
+		_ = os.Remove(idPath)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Account and device credentials completely deleted.",
 	})
 }
 

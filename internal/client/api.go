@@ -300,6 +300,7 @@ func mapHTTPError(statusCode int, path string) error {
 type RelayClient interface {
 	RegisterKey(handle, publicKey string) (*KeyInfo, error)
 	GetKey(handle string) (*KeyInfo, error)
+	DeleteKey(handle string) error
 	PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
 	PostChatMessage(recipient, sender, ciphertext string) (string, error)
 	PostGroupChatMessage(recipients []string, sender, ciphertext string) ([]string, error)
@@ -385,6 +386,33 @@ func (c *HTTPClient) GetKey(handle string) (*KeyInfo, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 	return &keyInfo, nil
+}
+
+func (c *HTTPClient) DeleteKey(handle string) error {
+	trimmedHandle := strings.TrimSpace(handle)
+	if trimmedHandle == "" {
+		return fmt.Errorf("%w: handle cannot be empty", ErrInvalidRequest)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/keys/%s", c.BaseURL, url.PathEscape(trimmedHandle)), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("relay returned status %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
@@ -656,6 +684,11 @@ func (m *MockClient) GetKey(handle string) (*KeyInfo, error) {
 		return nil, ErrNotFound
 	}
 	return info, nil
+}
+
+func (m *MockClient) DeleteKey(handle string) error {
+	delete(m.Keys, handle)
+	return nil
 }
 
 func (m *MockClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {

@@ -85,26 +85,44 @@ body.linen-theme {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px 20px 4px;
+    margin-bottom: 20px;
+    padding: 0 4px;
 }
 
 .brand-logo {
     font-family: var(--font-serif);
-    font-size: 1.85rem;
-    font-weight: 400;
+    font-size: 1.45rem;
+    font-weight: 600;
     font-style: italic;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     color: var(--linen-sidebar-text);
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
 }
 
-.brand-gold-dot {
-    width: 8px;
-    height: 8px;
-    background-color: var(--linen-gold);
-    border-radius: 50%;
-    box-shadow: 0 0 8px rgba(198, 155, 89, 0.5);
+.add-correspondence-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--linen-sidebar-text);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.add-correspondence-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.add-correspondence-btn svg {
+    flex-shrink: 0;
 }
 
 /* Search Box */
@@ -480,6 +498,37 @@ body.linen-theme {
     margin-left: 4px;
 }
 
+.action-label-text {
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-left: 6px;
+}
+
+.message-ttl-pill {
+    background: rgba(36, 88, 70, 0.08);
+    border: 1px solid rgba(36, 88, 70, 0.15);
+    color: var(--linen-card-green);
+    padding: 4px 9px;
+    border-radius: 14px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    margin-left: 4px;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.message-ttl-pill:hover {
+    background: rgba(36, 88, 70, 0.15);
+}
+
+.message-ttl-pill svg {
+    flex-shrink: 0;
+}
+
 /* --------------------------------------------------------------------------
    3. Bottom Input Dock & Floating Pill
    -------------------------------------------------------------------------- */
@@ -494,7 +543,7 @@ body.linen-theme {
     height: 54px;
     display: flex;
     align-items: center;
-    padding: 0 6px 0 18px;
+    padding: 0 6px 0 14px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.04);
 }
@@ -520,7 +569,7 @@ body.linen-theme {
     background: transparent;
     border: none;
     outline: none;
-    padding: 0 14px;
+    padding: 0 12px;
     font-size: 0.95rem;
     font-family: var(--font-sans);
     color: var(--linen-text-dark);
@@ -529,6 +578,110 @@ body.linen-theme {
 .linen-input-pill input::placeholder {
     color: #9a9d9a;
 }
+
+.pill-send-btn {
+    width: 42px;
+    height: 42px;
+    background-color: var(--linen-terracotta);
+    border: none;
+    border-radius: 50%;
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(180, 133, 88, 0.35);
+    transition: transform 0.1s ease, background-color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.pill-send-btn:hover {
+    background-color: #9f7349;
+    transform: scale(1.03);
+}
+
+.pill-send-btn:active {
+    transform: scale(0.96);
+}
+
+/* Modal Tabs & Credential Cards */
+.modal-tab-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #dfd8cc;
+    padding-bottom: 10px;
+}
+
+.modal-tab-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #636765;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.modal-tab-btn.active {
+    background-color: var(--linen-card-green);
+    color: #ffffff;
+}
+
+.identity-credential-box {
+    background: #ffffff;
+    border: 1px solid #dfd8cc;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+}
+
+.cred-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cred-label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7b807d;
+}
+
+.cred-value {
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    color: var(--linen-text-dark);
+    word-break: break-all;
+    background: #f7f5f0;
+    padding: 8px 10px;
+    border-radius: 6px;
+}
+
+.linen-btn-danger {
+    background-color: #b83a28;
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.linen-btn-danger:hover {
+    background-color: #992c1c;
+}
+
 
 .pill-send-btn {
     width: 44px;

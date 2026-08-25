@@ -61,6 +61,17 @@ func (f *fakeStore) LookupKey(_ context.Context, handle string) (store.KeyRecord
 	return rec, nil
 }
 
+func (f *fakeStore) DeleteKey(_ context.Context, handle string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.down {
+		return store.ErrUnavailable
+	}
+	delete(f.keys, handle)
+	return nil
+}
+
+
 func (f *fakeStore) PutPaste(_ context.Context, id string, ciphertextB64 string, _ time.Duration) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

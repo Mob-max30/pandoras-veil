@@ -27,6 +27,7 @@ import (
 type Store interface {
 	RegisterKey(ctx context.Context, handle, publicKey, fingerprint string) error
 	LookupKey(ctx context.Context, handle string) (store.KeyRecord, error)
+	DeleteKey(ctx context.Context, handle string) error
 	PutPaste(ctx context.Context, id string, ciphertextB64 string, ttl time.Duration) error
 	GetPaste(ctx context.Context, id string) (store.PasteRecord, error)
 	Ping(ctx context.Context) error
@@ -132,6 +133,23 @@ func (h *Handlers) LookupKey(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Error("looking up key", "error", err, "handle", handle)
 		writeError(w, http.StatusServiceUnavailable, "relay storage unavailable")
 	}
+}
+
+// DeleteKey handles DELETE /keys/{handle}
+func (h *Handlers) DeleteKey(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	if err := h.Store.DeleteKey(r.Context(), handle); err != nil {
+		h.Logger.Error("deleting key", "error", err, "handle", handle)
+		writeError(w, http.StatusInternalServerError, "failed to delete key")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "handle": handle})
 }
 
 // ---- POST /paste ----------------------------------------------------------
