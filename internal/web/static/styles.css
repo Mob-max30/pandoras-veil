@@ -618,3 +618,143 @@ body.linen-theme {
 .linen-btn:hover {
     background-color: #1a4234;
 }
+
+/* --------------------------------------------------------------------------
+   7. Device Initialization Screen (Full Overlay)
+   -------------------------------------------------------------------------- */
+.linen-init-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #12251e;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.linen-init-overlay.hidden {
+    display: none !important;
+}
+
+.linen-init-card {
+    background-color: #ede8df;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 480px;
+    padding: 42px 36px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    text-align: center;
+    border: 1px solid #dfd8cc;
+}
+
+.init-brand-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.init-brand-logo {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: var(--linen-sidebar-bg);
+}
+
+.init-card-title {
+    font-family: var(--font-serif);
+    font-size: 1.4rem;
+    color: var(--linen-text-dark);
+    margin-bottom: 10px;
+}
+
+.init-card-subtitle {
+    color: #636765;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 28px;
+}
+
+.init-form-box {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 14px;
+}
+
+.init-field-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--linen-text-dark);
+}
+
+.init-input-wrapper input {
+    width: 100%;
+    padding: 14px 16px;
+    background: #ffffff;
+    border: 1.5px solid #d2c8b8;
+    border-radius: 12px;
+    font-size: 1rem;
+    color: #222725;
+    outline: none;
+    font-weight: 500;
+    transition: border-color 0.15s ease;
+}
+
+.init-input-wrapper input:focus {
+    border-color: var(--linen-card-green);
+}
+
+.init-info-box {
+    background: rgba(36, 88, 70, 0.08);
+    border-left: 3px solid var(--linen-card-green);
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #374740;
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+.init-info-box code {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.init-error-text {
+    color: #c94a29;
+    font-size: 0.82rem;
+    margin-top: 4px;
+}
+
+.init-error-text.hidden {
+    display: none;
+}
+
+.init-submit-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    background-color: var(--linen-card-green);
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.init-submit-btn:hover {
+    background-color: #1a4234;
+}
+

@@ -102,6 +102,10 @@ const modalBackdropEl = document.getElementById('modal-backdrop');
 const modalTitleEl = document.getElementById('modal-title');
 const modalBodyEl = document.getElementById('modal-body');
 const chatSearchEl = document.getElementById('chat-search');
+const initOverlayEl = document.getElementById('init-overlay');
+const initHandleInputEl = document.getElementById('init-handle-input');
+const initErrorMsgEl = document.getElementById('init-error-msg');
+const initSubmitBtnEl = document.getElementById('init-submit-button');
 
 // 1. Initialize App & Connect to Stream
 async function initApp() {
@@ -114,23 +118,97 @@ async function initApp() {
         });
         if (res.ok) {
             const data = await res.json();
-            state.myHandle = data.handle || 'PV-USER';
-            state.myFingerprint = data.fingerprint || 'PENDING';
+            if (data.initialized === false || data.initialized === 'false' || !data.handle) {
+                // Device not initialized yet -> show initialization page
+                showInitOverlay();
+                return;
+            }
+            state.myHandle = data.handle || '';
+            state.myFingerprint = data.fingerprint || '';
             state.myPublicKey = data.publicKey || '';
             state.serverConnected = true;
 
             myHandleEl.textContent = state.myHandle;
             myFingerprintEl.textContent = `FP: ${state.myFingerprint}`;
             myAvatarEl.textContent = getInitials(state.myHandle).charAt(0) || 'U';
+            hideInitOverlay();
+        } else {
+            showInitOverlay();
+            return;
         }
     } catch (err) {
         console.warn('Failed to load local identity:', err);
+        showInitOverlay();
+        return;
     }
 
     renderCorrespondenceSidebar();
     setupEventListeners();
     connectSSEStream();
     renderActiveConversation();
+}
+
+function showInitOverlay() {
+    if (initOverlayEl) {
+        initOverlayEl.classList.remove('hidden');
+        if (initHandleInputEl) initHandleInputEl.focus();
+    }
+}
+
+function hideInitOverlay() {
+    if (initOverlayEl) {
+        initOverlayEl.classList.add('hidden');
+    }
+}
+
+async function handleInitSubmit(e) {
+    e.preventDefault();
+    const handleVal = initHandleInputEl.value.trim();
+    if (!handleVal) return;
+
+    initErrorMsgEl.classList.add('hidden');
+    initSubmitBtnEl.disabled = true;
+    initSubmitBtnEl.textContent = 'Generating X25519 Keys...';
+
+    try {
+        const token = getAuthToken();
+        const res = await fetch('/api/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Pandora-Token': token
+            },
+            body: JSON.stringify({ handle: handleVal })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            state.myHandle = data.handle;
+            state.myFingerprint = data.fingerprint;
+            state.myPublicKey = data.publicKey;
+            state.serverConnected = true;
+
+            myHandleEl.textContent = state.myHandle;
+            myFingerprintEl.textContent = `FP: ${state.myFingerprint}`;
+            myAvatarEl.textContent = getInitials(state.myHandle).charAt(0) || 'U';
+
+            hideInitOverlay();
+            renderCorrespondenceSidebar();
+            setupEventListeners();
+            connectSSEStream();
+            renderActiveConversation();
+        } else {
+            initErrorMsgEl.textContent = data.error || 'Failed to initialize device.';
+            initErrorMsgEl.classList.remove('hidden');
+            initSubmitBtnEl.disabled = false;
+            initSubmitBtnEl.textContent = 'Initialize Device & Keypair';
+        }
+    } catch (err) {
+        initErrorMsgEl.textContent = `Network error: ${err.message}`;
+        initErrorMsgEl.classList.remove('hidden');
+        initSubmitBtnEl.disabled = false;
+        initSubmitBtnEl.textContent = 'Initialize Device & Keypair';
+    }
 }
 
 // 2. Render Correspondence List in Sidebar

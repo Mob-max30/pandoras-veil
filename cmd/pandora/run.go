@@ -39,28 +39,13 @@ func runWeb(args []string, ui *UI, apiClient client.RelayClient) int {
 		return 1
 	}
 
-	// 1. Verify local device identity exists
+	// 1. Check local device identity
 	idFile, err := storage.LoadIdentity(*configFlag)
-	if err != nil {
-		ui.Error("No local identity found: %v", err)
-		ui.Info("Initializing new default device identity for web interface...")
-		hostname, _ := os.Hostname()
-		if hostname == "" {
-			hostname = "USER"
-		}
-		defaultHandle := "PV-" + sanitizeHandle(hostname)
-		if defaultHandle == "PV-" {
-			defaultHandle = "PV-LOCAL"
-		}
-		initArgs := []string{"--handle", defaultHandle}
-		if *configFlag != "" {
-			initArgs = append(initArgs, "--path", *configFlag)
-		}
-		if code := runInit(initArgs, ui, apiClient); code != 0 {
-			ui.Error("Failed to initialize identity automatically. Please run 'pv init' first.")
-			return 1
-		}
-		idFile, _ = storage.LoadIdentity(*configFlag)
+	deviceDesc := "[Uninitialized - Complete setup in Web UI]"
+	if err == nil && idFile.Handle != "" {
+		deviceDesc = fmt.Sprintf("%s (Fingerprint: %s)", idFile.Handle, idFile.Fingerprint)
+	} else {
+		ui.Info("No local identity found. You can set up your handle and keypair on the web dashboard.")
 	}
 
 	// 2. Health check relay
@@ -68,7 +53,7 @@ func runWeb(args []string, ui *UI, apiClient client.RelayClient) int {
 		httpCl.BaseURL = *relayFlag
 	}
 	if err := apiClient.Health(); err != nil {
-		ui.Warn("Relay server health check warning: %v (operating in local buffer mode)", err)
+		ui.Warn("Relay server health check warning: %v", err)
 	}
 
 	// 3. Find open port
@@ -98,12 +83,12 @@ func runWeb(args []string, ui *UI, apiClient client.RelayClient) int {
 	localURL := fmt.Sprintf("http://localhost:%d", port)
 
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n", ColorCyan+ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  %sPANDORA'S VEIL WEB DASHBOARD RUNNING%s\n", ColorGreen+ColorBold, ColorReset)
-	fmt.Fprintf(ui.Out, "  %sLocal URL:%s  %s%s%s\n", ColorBold, ColorReset, ColorYellow+ColorBold, localURL, ColorReset)
-	fmt.Fprintf(ui.Out, "  %sDevice:%s     %s%s%s (Fingerprint: %s%s%s)\n", ColorBold, ColorReset, ColorCyan, idFile.Handle, ColorReset, ColorYellow, idFile.Fingerprint, ColorReset)
-	fmt.Fprintf(ui.Out, "  %sFirewall:%s   %sDNS Rebinding & Localhost CSRF Protected (Token: %s..)%s\n", ColorBold, ColorReset, ColorGreen, webServer.SessionToken()[:8], ColorReset)
-	fmt.Fprintf(ui.Out, "  %sRelay:%s      %s%s%s\n", ColorBold, ColorReset, ColorDim, *relayFlag, ColorReset)
-	fmt.Fprintf(ui.Out, "  %sZero-Knowledge E2E Encryption Active (Native Go age/X25519)%s\n", ColorGreen, ColorReset)
+	fmt.Fprintf(ui.Out, "  PANDORA'S VEIL WEB DASHBOARD RUNNING\n")
+	fmt.Fprintf(ui.Out, "  Local URL:  %s%s%s\n", ColorGreen+ColorBold, localURL, ColorReset)
+	fmt.Fprintf(ui.Out, "  Device:     %s\n", deviceDesc)
+	fmt.Fprintf(ui.Out, "  Firewall:   DNS Rebinding & Localhost CSRF Protected (Token: %s..)\n", webServer.SessionToken()[:8])
+	fmt.Fprintf(ui.Out, "  Relay:      %s\n", *relayFlag)
+	fmt.Fprintf(ui.Out, "  Zero-Knowledge E2E Encryption Active (Native Go age/X25519)\n")
 	fmt.Fprintf(ui.Out, "%s================================================================================%s\n\n", ColorCyan+ColorBold, ColorReset)
 	fmt.Fprintf(ui.Out, "%s[i] Press [Ctrl+C] to stop the local web server.%s\n\n", ColorDim, ColorReset)
 

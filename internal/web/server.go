@@ -66,6 +66,7 @@ func (s *Server) Routes() http.Handler {
 
 	// 3. Local Security Bridge APIs (All Protected by Host/Origin & Token checks)
 	mux.HandleFunc("/api/identity", s.handleIdentity)
+	mux.HandleFunc("/api/init", s.handleInit)
 	mux.HandleFunc("/api/send", s.handleSend)
 	mux.HandleFunc("/api/stream", s.handleStream)
 	mux.HandleFunc("/api/deposit", s.handleDeposit)
@@ -110,13 +111,7 @@ func (s *Server) securityFirewall(next http.Handler) http.Handler {
 			}
 		}
 
-		// --- 3. Security Headers ---
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "same-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none';")
-
-		// --- 4. API Token Verification ---
+		// --- 3. Ephemeral CSRF Session Token Check on APIs ---
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" {
 			tokenHeader := r.Header.Get("X-Pandora-Token")
 			tokenQuery := r.URL.Query().Get("token")
@@ -126,12 +121,17 @@ func (s *Server) securityFirewall(next http.Handler) http.Handler {
 			}
 		}
 
+		// Set strict defensive headers
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' http://localhost:* http://127.0.0.1:*;")
+
 		next.ServeHTTP(w, r)
 	})
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
@@ -163,15 +163,78 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleIdentity(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	idFile, err := storage.LoadIdentity(s.configDir)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusInternalServerError)
+	if err != nil || idFile.Handle == "" {
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"initialized": "false",
+		})
 		return
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
+		"initialized": "true",
 		"handle":      idFile.Handle,
 		"fingerprint": idFile.Fingerprint,
 		"publicKey":   idFile.PublicKey,
+	})
+}
+
+type InitRequest struct {
+	Handle string `json:"handle"`
+}
+
+func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req InitRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"Invalid request payload"}`, http.StatusBadRequest)
+		return
+	}
+
+	handle := strings.TrimSpace(req.Handle)
+	if handle == "" {
+		http.Error(w, `{"error":"Handle cannot be empty"}`, http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(strings.ToUpper(handle), "PV-") {
+		handle = "PV-" + strings.ToUpper(handle)
+	} else {
+		handle = strings.ToUpper(handle)
+	}
+
+	// Generate X25519 identity in Go daemon
+	devIdentity, err := crypto.GenerateIdentity()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"Failed to generate keypair: %v"}`, err), http.StatusInternalServerError)
+		return
+	}
+	pubKey := crypto.GetPublicKey(devIdentity)
+	fp := crypto.ComputeFingerprint(pubKey)
+
+	// Register with relay server
+	_, _ = s.apiClient.RegisterKey(handle, pubKey)
+
+	idFile := storage.IdentityFile{
+		Handle:      handle,
+		PublicKey:   pubKey,
+		PrivateKey:  devIdentity.String(),
+		Fingerprint: fp,
+	}
+
+	if err := storage.SaveIdentity(s.configDir, &idFile); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"Failed to save identity: %v"}`, err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":     true,
+		"handle":      handle,
+		"fingerprint": fp,
+		"publicKey":   pubKey,
 	})
 }
 
