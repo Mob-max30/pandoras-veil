@@ -4,21 +4,262 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Mob-max30/pandoras-veil/internal/client"
 	"github.com/Mob-max30/pandoras-veil/internal/crypto"
 	"github.com/Mob-max30/pandoras-veil/internal/storage"
+	"golang.org/x/term"
 )
 
 type groupMember struct {
 	handle      string
 	publicKey   string
 	fingerprint string
+}
+
+type ChatMessage struct {
+	Timestamp  string
+	Sender     string
+	Text       string
+	IsOutgoing bool
+}
+
+type TUIState struct {
+	mu          sync.Mutex
+	userHandle  string
+	userFP      string
+	userKey     string
+	targetLabel string
+	targetFP    string
+	isGroup     bool
+	members     []groupMember
+	ttlSetting  string
+	burnSetting string
+	relayURL    string
+	messages    []ChatMessage
+	inputBuffer string
+	out         io.Writer
+}
+
+func (s *TUIState) AddMessage(msg ChatMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, msg)
+	s.render()
+}
+
+func (s *TUIState) SetInput(text string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inputBuffer = text
+	s.render()
+}
+
+func visualWidth(str string) int {
+	return utf8.RuneCountInString(stripANSI(str))
+}
+
+func padRight(s string, w int) string {
+	vis := visualWidth(s)
+	if vis >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-vis)
+}
+
+func (s *TUIState) render() {
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width < 60 || height < 15 {
+		width = 90
+		height = 25
+	}
+
+	leftW := width * 24 / 100
+	if leftW < 22 {
+		leftW = 22
+	}
+	if leftW > 32 {
+		leftW = 32
+	}
+	rightW := width - leftW - 3
+	if rightW < 30 {
+		rightW = 30
+	}
+
+	totalInnerH := height - 5
+	if totalInnerH < 6 {
+		totalInnerH = 6
+	}
+
+	leftH1 := totalInnerH / 2
+	leftH2 := totalInnerH - leftH1 - 1 // 1 row for middle divider
+
+	var b strings.Builder
+	// Move cursor to top-left, hide cursor during frame draw
+	b.WriteString("\033[H\033[?25l")
+
+	// 1. Top Header Row
+	topHeader := fmt.Sprintf("┌%s┬%s┐\n", strings.Repeat("─", leftW), strings.Repeat("─", rightW))
+	b.WriteString(ColorDim + topHeader + ColorReset)
+
+	titleLeft := padRight(fmt.Sprintf(" %s🔒 PANDORA RELAY%s", ColorBold+ColorCyan, ColorReset), leftW)
+	headerTarget := fmt.Sprintf(" %s💬 SESSION: %s%s  |  FP: [%s%s%s]  |  %s🔒 E2E ENCRYPTED%s",
+		ColorBold+ColorGreen, s.targetLabel, ColorReset,
+		ColorYellow, s.targetFP, ColorReset,
+		ColorGreen, ColorReset,
+	)
+	if s.isGroup {
+		headerTarget = fmt.Sprintf(" %s🔒 GROUP (%d Members)%s  |  %s🔒 E2E MULTI-KEY ENCRYPTED%s",
+			ColorBold+ColorGreen, len(s.members)+1, ColorReset,
+			ColorGreen, ColorReset,
+		)
+	}
+	titleRight := padRight(headerTarget, rightW)
+
+	b.WriteString(fmt.Sprintf("%s│%s%s%s│%s%s%s│%s\n",
+		ColorDim, ColorReset, titleLeft, ColorDim, ColorReset, titleRight, ColorDim, ColorReset,
+	))
+
+	// 2. Header Divider
+	b.WriteString(fmt.Sprintf("%s├%s┼%s┤%s\n",
+		ColorDim, strings.Repeat("─", leftW), strings.Repeat("─", rightW), ColorReset,
+	))
+
+	// 3. Prepare Left Sidebar Lines
+	leftBox1 := make([]string, leftH1)
+	leftBox1[0] = ColorBold + ColorWhite + " [YOUR IDENTITY]" + ColorReset
+	leftBox1[1] = ColorCyan + " Handle: " + ColorReset + s.userHandle
+	leftBox1[2] = ColorYellow + " FP: " + ColorReset + s.userFP
+	keySnip := s.userKey
+	if len(keySnip) > 10 {
+		keySnip = keySnip[:5] + ".." + keySnip[len(keySnip)-4:]
+	}
+	if leftH1 > 3 {
+		leftBox1[3] = ColorDim + " Key: " + keySnip + ColorReset
+	}
+	if leftH1 > 4 {
+		leftBox1[4] = ColorGreen + " Status: Online" + ColorReset
+	}
+
+	leftBox2 := make([]string, leftH2)
+	leftBox2[0] = ColorBold + ColorWhite + " [SETTINGS & POLICY]" + ColorReset
+	leftBox2[1] = ColorCyan + " Disappear: " + ColorReset + s.ttlSetting
+	leftBox2[2] = ColorCyan + " Burn Read: " + ColorReset + s.burnSetting
+	if s.isGroup && leftH2 > 3 {
+		leftBox2[3] = ColorDim + fmt.Sprintf(" Group: %d Peers", len(s.members)) + ColorReset
+	} else if leftH2 > 3 {
+		leftBox2[3] = ColorDim + " Cipher: age/X25519" + ColorReset
+	}
+	if leftH2 > 4 {
+		leftBox2[4] = ColorDim + " Exit: /quit" + ColorReset
+	}
+
+	// 4. Prepare Right Chat Lines
+	visibleMsgs := s.messages
+	if len(visibleMsgs) > totalInnerH {
+		visibleMsgs = visibleMsgs[len(visibleMsgs)-totalInnerH:]
+	}
+
+	chatLines := make([]string, totalInnerH)
+	startIdx := totalInnerH - len(visibleMsgs)
+	for i, msg := range visibleMsgs {
+		idx := startIdx + i
+		if idx >= 0 && idx < totalInnerH {
+			if msg.IsOutgoing {
+				// Outgoing right-aligned bubble
+				formatted := fmt.Sprintf("%s%s%s %s[YOU]%s %s[%s]%s",
+					ColorBold+ColorGreen, msg.Text, ColorReset,
+					ColorBold+ColorMagenta, ColorReset,
+					ColorDim, msg.Timestamp, ColorReset,
+				)
+				visLen := visualWidth(formatted)
+				pad := rightW - visLen - 2
+				if pad < 1 {
+					pad = 1
+				}
+				chatLines[idx] = strings.Repeat(" ", pad) + formatted
+			} else {
+				// Incoming left-aligned bubble
+				formatted := fmt.Sprintf(" %s[%s]%s %s[%s] ❯%s %s",
+					ColorDim, msg.Timestamp, ColorReset,
+					ColorBold+ColorMagenta, msg.Sender, ColorReset,
+					msg.Text,
+				)
+				chatLines[idx] = formatted
+			}
+		}
+	}
+
+	// 5. Render Main Content (Row by Row)
+	for row := 0; row < totalInnerH; row++ {
+		var leftContent string
+		if row < leftH1 {
+			leftContent = leftBox1[row]
+		} else if row == leftH1 {
+			// Middle horizontal divider on left box
+			leftContent = ColorDim + strings.Repeat("─", leftW) + ColorReset
+		} else {
+			box2Idx := row - leftH1 - 1
+			if box2Idx < len(leftBox2) {
+				leftContent = leftBox2[box2Idx]
+			}
+		}
+
+		leftPadded := padRight(leftContent, leftW)
+		rightPadded := padRight(chatLines[row], rightW)
+
+		b.WriteString(fmt.Sprintf("%s│%s%s%s│%s%s%s│%s\n",
+			ColorDim, ColorReset, leftPadded, ColorDim, ColorReset, rightPadded, ColorDim, ColorReset,
+		))
+	}
+
+	// 6. Bottom Separator
+	b.WriteString(fmt.Sprintf("%s├%s┴%s┤%s\n",
+		ColorDim, strings.Repeat("─", leftW), strings.Repeat("─", rightW), ColorReset,
+	))
+
+	// 7. Input Line Row
+	inputPrompt := fmt.Sprintf(" [%s] ❯ ", s.userHandle)
+	inputDisplay := s.inputBuffer
+	maxInputW := width - len(inputPrompt) - 4
+	if maxInputW > 0 && len(inputDisplay) > maxInputW {
+		inputDisplay = inputDisplay[len(inputDisplay)-maxInputW:]
+	}
+
+	inputLine := padRight(fmt.Sprintf("%s%s%s%s", ColorBold+ColorCyan, inputPrompt, ColorReset, inputDisplay), width-2)
+	b.WriteString(fmt.Sprintf("%s│%s%s%s│%s\n", ColorDim, ColorReset, inputLine, ColorDim, ColorReset))
+
+	// 8. Bottom Frame Border
+	b.WriteString(fmt.Sprintf("%s└%s┘%s\033[?25h", ColorDim, strings.Repeat("─", width-2), ColorReset))
+
+	fmt.Fprint(s.out, b.String())
+}
+
+func stripANSI(str string) string {
+	var b strings.Builder
+	inEsc := false
+	for _, r := range str {
+		if r == '\033' {
+			inEsc = true
+			continue
+		}
+		if inEsc {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEsc = false
+			}
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // runChat handles 'pandora chat' command for 1-on-1 and Group Chat
@@ -171,27 +412,39 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 	}
 
-	// 5. Render Live Chat Header
-	fmt.Fprintf(ui.Out, "\n%s%s================================================================================%s\n", ColorBold, ColorCyan, ColorReset)
+	// 5. Enter Alternate Screen Buffer (Dedicated Full Screen Layout)
+	fmt.Fprint(ui.Out, "\033[?1049h\033[2J\033[H")
+	defer fmt.Fprint(ui.Out, "\033[?1049l\033[?25h")
+
+	targetLabel := recipientHandles[0]
+	targetFP := members[0].fingerprint
 	if isGroup {
-		handleListStr := strings.Join(recipientHandles, ", ")
-		fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE GROUP RELAY | Encrypted Group Session (%d Members)%s\n", ColorBold, ColorGreen, len(members)+1, ColorReset)
-		fmt.Fprintf(ui.Out, "%s%s  Group Members: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, handleListStr, ColorReset)
-	} else {
-		m := members[0]
-		fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE RELAY | End-to-End Encrypted Session with %s%s\n", ColorBold, ColorGreen, m.handle, ColorReset)
-		fmt.Fprintf(ui.Out, "%s%s  Device Fingerprint: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, m.fingerprint, ColorReset)
+		targetLabel = strings.Join(recipientHandles, ", ")
+		targetFP = fmt.Sprintf("%d Members", len(members))
 	}
-	fmt.Fprintf(ui.Out, "%s%s  Type your message and press [Enter] to send live. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorReset)
-	fmt.Fprintf(ui.Out, "%s%s================================================================================%s\n\n", ColorBold, ColorCyan, ColorReset)
+
+	state := &TUIState{
+		userHandle:  localIdFile.Handle,
+		userFP:      localIdFile.Fingerprint,
+		userKey:     localIdFile.PublicKey,
+		targetLabel: targetLabel,
+		targetFP:    targetFP,
+		isGroup:     isGroup,
+		members:     members,
+		ttlSetting:  "24 Hours",
+		burnSetting: "Disabled",
+		relayURL:    *relayFlag,
+		messages:    make([]ChatMessage, 0),
+		out:         ui.Out,
+	}
+
+	state.render()
 
 	stopCh := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	const chatWidth = 72
-
-	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
+	// 6. Background Listener Goroutine (SSE Stream - Session Isolation Protected)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
 			// Session isolation check: filter out messages from anyone outside active recipient list
@@ -203,12 +456,11 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				}
 			}
 			if msg.Sender != "" && !isMember {
-				return // Drop non-session messages
+				return // Drop messages from outside the active session
 			}
 
 			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
 			if err != nil {
-				// Silently skip unaddressed/corrupted messages
 				return
 			}
 			timestamp := time.Now().Format("15:04:05")
@@ -217,43 +469,33 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				senderName = recipientHandles[0]
 			}
 
-			// Left-aligned incoming bubble
-			incomingMsg := fmt.Sprintf("%s[%s]%s %s[%s] ❯%s %s",
-				ColorDim, timestamp, ColorReset,
-				ColorBold+ColorMagenta, senderName, ColorReset,
-				string(plaintext),
-			)
-
-			// Clear current line, print incoming message, and redraw prompt
-			fmt.Fprintf(ui.Out, "\r\033[K%s\n%s[%s] > %s", incomingMsg, ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
+			state.AddMessage(ChatMessage{
+				Timestamp:  timestamp,
+				Sender:     senderName,
+				Text:       string(plaintext),
+				IsOutgoing: false,
+			})
 		}, stopCh)
 	}()
-
-	// 7. Foreground Sender Loop (Right Aligned)
-	scanner := bufio.NewScanner(ui.In)
-	promptPrompt := func() {
-		fmt.Fprintf(ui.Out, "%s[%s] > %s", ColorBold+ColorCyan, localIdFile.Handle, ColorReset)
-	}
-
-	promptPrompt()
 
 	go func() {
 		<-sigCh
 		close(stopCh)
-		fmt.Fprintf(ui.Out, "\n\n%s[i] Live chat session closed.%s\n", ColorYellow, ColorReset)
+		fmt.Fprint(ui.Out, "\033[?1049l\033[?25h")
 		os.Exit(0)
 	}()
 
+	// 7. Foreground Input Handling Loop
+	scanner := bufio.NewScanner(ui.In)
 	for scanner.Scan() {
 		text := strings.TrimSpace(scanner.Text())
 		if text == "" {
-			promptPrompt()
+			state.SetInput("")
 			continue
 		}
 
 		if text == "/quit" || text == "/exit" {
 			close(stopCh)
-			fmt.Fprintf(ui.Out, "%s[i] Live chat session ended.%s\n", ColorYellow, ColorReset)
 			return 0
 		}
 
@@ -269,8 +511,13 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			ciphertext, err = crypto.Encrypt([]byte(text), members[0].publicKey)
 		}
 		if err != nil {
-			ui.Error("Encryption failed: %v", err)
-			promptPrompt()
+			state.AddMessage(ChatMessage{
+				Timestamp:  time.Now().Format("15:04:05"),
+				Sender:     "SYSTEM",
+				Text:       fmt.Sprintf("Encryption error: %v", err),
+				IsOutgoing: false,
+			})
+			state.SetInput("")
 			continue
 		}
 
@@ -281,30 +528,24 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			_, err = apiClient.PostChatMessage(recipientHandles[0], localIdFile.Handle, string(ciphertext))
 		}
 		if err != nil {
-			ui.Error("Delivery failed: %v", err)
-			promptPrompt()
+			state.AddMessage(ChatMessage{
+				Timestamp:  time.Now().Format("15:04:05"),
+				Sender:     "SYSTEM",
+				Text:       fmt.Sprintf("Delivery failed: %v", err),
+				IsOutgoing: false,
+			})
+			state.SetInput("")
 			continue
 		}
 
 		timestamp := time.Now().Format("15:04:05")
-
-		// Right-aligned outgoing bubble (WhatsApp style)
-		visibleLen := len(text) + len(timestamp) + 12
-		pad := chatWidth - visibleLen
-		if pad < 2 {
-			pad = 2
-		}
-		spaces := strings.Repeat(" ", pad)
-
-		// Move cursor up 1 line, clear it, and print right-aligned sent message
-		fmt.Fprintf(ui.Out, "\033[1A\r\033[K%s%s%s%s %s[YOU]%s %s[%s]%s\n",
-			spaces,
-			ColorBold+ColorGreen, text, ColorReset,
-			ColorBold+ColorMagenta, ColorReset,
-			ColorDim, timestamp, ColorReset,
-		)
-
-		promptPrompt()
+		state.AddMessage(ChatMessage{
+			Timestamp:  timestamp,
+			Sender:     localIdFile.Handle,
+			Text:       text,
+			IsOutgoing: true,
+		})
+		state.SetInput("")
 	}
 
 	close(stopCh)
