@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bytes"
 	"encoding/base64"
 	"embed"
 	"encoding/json"
@@ -58,6 +59,83 @@ func resolveKey(apiClient client.RelayClient, handle string) (*client.KeyInfo, e
 	}
 
 	return nil, fmt.Errorf("user '%s' not registered on relay", handle)
+}
+
+type GroupEnvelope struct {
+	IsGroup      bool     `json:"is_group"`
+	GroupName    string   `json:"group_name"`
+	GroupMembers []string `json:"group_members"`
+	Sender       string   `json:"sender"`
+	Text         string   `json:"text,omitempty"`
+	IsFile       bool     `json:"is_file,omitempty"`
+	Filename     string   `json:"filename,omitempty"`
+	DataB64      string   `json:"data_b64,omitempty"`
+}
+
+func unpackDecrypted(plaintext []byte, fallbackSender string) map[string]interface{} {
+	trimmed := bytes.TrimSpace(plaintext)
+	timestamp := time.Now().Format("15:04")
+
+	var grp GroupEnvelope
+	if err := json.Unmarshal(trimmed, &grp); err == nil && (grp.IsGroup || strings.HasPrefix(grp.GroupName, "#")) {
+		sender := grp.Sender
+		if sender == "" {
+			sender = fallbackSender
+		}
+
+		if grp.IsFile && grp.DataB64 != "" {
+			fileBytes, _ := base64.StdEncoding.DecodeString(grp.DataB64)
+			_ = os.MkdirAll("./downloads", 0755)
+			savePath := filepath.Join("./downloads", grp.Filename)
+			_ = os.WriteFile(savePath, fileBytes, 0600)
+
+			return map[string]interface{}{
+				"isGroup":      true,
+				"groupName":    grp.GroupName,
+				"groupMembers": grp.GroupMembers,
+				"sender":       sender,
+				"isFile":       true,
+				"filename":     grp.Filename,
+				"fileSize":     len(fileBytes),
+				"savePath":     savePath,
+				"timestamp":    timestamp,
+			}
+		}
+
+		return map[string]interface{}{
+			"isGroup":      true,
+			"groupName":    grp.GroupName,
+			"groupMembers": grp.GroupMembers,
+			"sender":       sender,
+			"text":         grp.Text,
+			"timestamp":    timestamp,
+		}
+	}
+
+	// Standard DM or Direct File Payload
+	filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
+	if isFile {
+		_ = os.MkdirAll("./downloads", 0755)
+		savePath := filepath.Join("./downloads", filename)
+		_ = os.WriteFile(savePath, fileData, 0600)
+
+		return map[string]interface{}{
+			"isGroup":   false,
+			"sender":    fallbackSender,
+			"isFile":    true,
+			"filename":  filename,
+			"fileSize":  len(fileData),
+			"savePath":  savePath,
+			"timestamp": timestamp,
+		}
+	}
+
+	return map[string]interface{}{
+		"isGroup":   false,
+		"sender":    fallbackSender,
+		"text":      string(plaintext),
+		"timestamp": timestamp,
+	}
 }
 
 // StartShellServer starts the local web server bridging the App Shell UI with local crypto and relay API
@@ -208,37 +286,49 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 			return
 		}
 
-		// Prepare plaintext bytes (either file or text)
-		var plaintextBytes []byte
-		if req.File != nil && req.File.Filename != "" && req.File.DataB64 != "" {
-			rawBytes, err := base64.StdEncoding.DecodeString(req.File.DataB64)
-			if err != nil {
-				writeJSONError(w, http.StatusBadRequest, "Invalid file encoding")
-				return
-			}
-			if len(rawBytes) > 2*1024*1024 {
-				writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("File exceeds 2MB limit (%d KB)", len(rawBytes)/1024))
-				return
-			}
-			encodedPayload, err := crypto.EncodeFilePayload(req.File.Filename, rawBytes)
-			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, "Failed to encode file payload")
-				return
-			}
-			plaintextBytes = encodedPayload
-		} else if req.Text != "" {
-			plaintextBytes = []byte(req.Text)
-		} else {
-			writeJSONError(w, http.StatusBadRequest, "No text or file to send")
-			return
-		}
-
 		if req.IsGroup || strings.HasPrefix(req.Target, "#") {
-			// Multi-recipient group chat
+			// Multi-recipient group chat room
 			members := req.GroupMembers
 			if len(members) == 0 {
 				members = []string{req.Target}
 			}
+
+			// Add current sender to member list
+			allMembers := append([]string{idFile.Handle}, members...)
+
+			groupEnc := GroupEnvelope{
+				IsGroup:      true,
+				GroupName:    req.Target,
+				GroupMembers: allMembers,
+				Sender:       idFile.Handle,
+			}
+
+			if req.File != nil && req.File.Filename != "" && req.File.DataB64 != "" {
+				rawBytes, err := base64.StdEncoding.DecodeString(req.File.DataB64)
+				if err != nil {
+					writeJSONError(w, http.StatusBadRequest, "Invalid file encoding")
+					return
+				}
+				if len(rawBytes) > 2*1024*1024 {
+					writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("File exceeds 2MB limit (%d KB)", len(rawBytes)/1024))
+					return
+				}
+				groupEnc.IsFile = true
+				groupEnc.Filename = req.File.Filename
+				groupEnc.DataB64 = req.File.DataB64
+			} else if req.Text != "" {
+				groupEnc.Text = req.Text
+			} else {
+				writeJSONError(w, http.StatusBadRequest, "No text or file to send")
+				return
+			}
+
+			plaintextBytes, err := json.Marshal(groupEnc)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "Failed to encode group payload")
+				return
+			}
+
 			var pubKeys []string
 			var recipientHandles []string
 			for _, m := range members {
@@ -249,7 +339,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 				info, err := resolveKey(apiClient, trimmed)
 				if err == nil && info != nil && info.PublicKey != "" {
 					pubKeys = append(pubKeys, info.PublicKey)
-					recipientHandles = append(recipientHandles, trimmed)
+					recipientHandles = append(recipientHandles, info.Handle)
 				}
 			}
 
@@ -274,6 +364,30 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 			targetHandle := strings.TrimSpace(req.Target)
 			if targetHandle == "" {
 				writeJSONError(w, http.StatusBadRequest, "Target handle required")
+				return
+			}
+
+			var plaintextBytes []byte
+			if req.File != nil && req.File.Filename != "" && req.File.DataB64 != "" {
+				rawBytes, err := base64.StdEncoding.DecodeString(req.File.DataB64)
+				if err != nil {
+					writeJSONError(w, http.StatusBadRequest, "Invalid file encoding")
+					return
+				}
+				if len(rawBytes) > 2*1024*1024 {
+					writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("File exceeds 2MB limit (%d KB)", len(rawBytes)/1024))
+					return
+				}
+				encodedPayload, err := crypto.EncodeFilePayload(req.File.Filename, rawBytes)
+				if err != nil {
+					writeJSONError(w, http.StatusInternalServerError, "Failed to encode file payload")
+					return
+				}
+				plaintextBytes = encodedPayload
+			} else if req.Text != "" {
+				plaintextBytes = []byte(req.Text)
+			} else {
+				writeJSONError(w, http.StatusBadRequest, "No text or file to send")
 				return
 			}
 
@@ -333,31 +447,7 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 					return
 				}
 
-				timestamp := time.Now().Format("15:04")
-				filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
-
-				var payload map[string]interface{}
-				if isFile {
-					_ = os.MkdirAll("./downloads", 0755)
-					savePath := filepath.Join("./downloads", filename)
-					_ = os.WriteFile(savePath, fileData, 0600)
-
-					payload = map[string]interface{}{
-						"sender":    event.Sender,
-						"isFile":    true,
-						"filename":  filename,
-						"fileSize":  len(fileData),
-						"savePath":  savePath,
-						"timestamp": timestamp,
-					}
-				} else {
-					payload = map[string]interface{}{
-						"sender":    event.Sender,
-						"text":      string(plaintext),
-						"timestamp": timestamp,
-					}
-				}
-
+				payload := unpackDecrypted(plaintext, event.Sender)
 				dataBytes, _ := json.Marshal(payload)
 				_, _ = fmt.Fprintf(w, "data: %s\n\n", string(dataBytes))
 				flusher.Flush()
@@ -397,34 +487,8 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 				continue
 			}
 
-			timestamp := time.Now().Format("15:04")
-			filename, fileData, isFile := crypto.DecodeFilePayload(plaintext)
-
-			senderName := msg.Sender
-			if senderName == "" {
-				senderName = sender
-			}
-
-			if isFile {
-				_ = os.MkdirAll("./downloads", 0755)
-				savePath := filepath.Join("./downloads", filename)
-				_ = os.WriteFile(savePath, fileData, 0600)
-
-				results = append(results, map[string]interface{}{
-					"sender":    senderName,
-					"isFile":    true,
-					"filename":  filename,
-					"fileSize":  len(fileData),
-					"savePath":  savePath,
-					"timestamp": timestamp,
-				})
-			} else {
-				results = append(results, map[string]interface{}{
-					"sender":    senderName,
-					"text":      string(plaintext),
-					"timestamp": timestamp,
-				})
-			}
+			payload := unpackDecrypted(plaintext, msg.Sender)
+			results = append(results, payload)
 		}
 
 		if results == nil {

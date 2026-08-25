@@ -169,18 +169,38 @@ document.addEventListener('DOMContentLoaded', () => {
     eventSource.onmessage = e => {
       try {
         const data = JSON.parse(e.data);
-        if (!data || !data.sender) return;
+        if (!data) return;
 
-        const senderHandle = data.sender;
-        addChannelItem(senderHandle, false, false);
+        let channelKey = '';
+        const isGroup = data.isGroup || (data.groupName && data.groupName.startsWith('#'));
 
-        if (!channelHistories[senderHandle]) {
-          channelHistories[senderHandle] = [];
+        if (isGroup) {
+          channelKey = data.groupName;
+          addChannelItem(channelKey, true, false);
+
+          if (Array.isArray(data.groupMembers) && data.groupMembers.length > 0) {
+            if (!groupMembers[channelKey]) {
+              groupMembers[channelKey] = [];
+            }
+            data.groupMembers.forEach(m => {
+              if (m && !groupMembers[channelKey].includes(m) && m !== currentHostHandle) {
+                groupMembers[channelKey].push(m);
+              }
+            });
+          }
+        } else {
+          channelKey = data.sender;
+          if (!channelKey) return;
+          addChannelItem(channelKey, false, false);
+        }
+
+        if (!channelHistories[channelKey]) {
+          channelHistories[channelKey] = [];
         }
 
         const timeStr = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const msgObj = {
-          sender: senderHandle,
+          sender: data.sender || (isGroup ? 'Group Member' : channelKey),
           text: data.text || '',
           isFile: data.isFile || false,
           filename: data.filename || '',
@@ -190,9 +210,9 @@ document.addEventListener('DOMContentLoaded', () => {
           isYou: false
         };
 
-        channelHistories[senderHandle].push(msgObj);
+        channelHistories[channelKey].push(msgObj);
 
-        if (activeChannel === senderHandle) {
+        if (activeChannel === channelKey) {
           renderCurrentChannel();
         }
       } catch (err) {
@@ -348,12 +368,28 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const msgs = await res.json();
         if (Array.isArray(msgs) && msgs.length > 0) {
-          if (!channelHistories[handle]) {
-            channelHistories[handle] = [];
-          }
           msgs.forEach(m => {
-            channelHistories[handle].push({
-              sender: m.sender || handle,
+            const isGroup = m.isGroup || (m.groupName && m.groupName.startsWith('#'));
+            const targetChannel = isGroup ? m.groupName : handle;
+
+            if (isGroup) {
+              addChannelItem(targetChannel, true, false);
+              if (Array.isArray(m.groupMembers)) {
+                if (!groupMembers[targetChannel]) groupMembers[targetChannel] = [];
+                m.groupMembers.forEach(mem => {
+                  if (mem && !groupMembers[targetChannel].includes(mem) && mem !== currentHostHandle) {
+                    groupMembers[targetChannel].push(mem);
+                  }
+                });
+              }
+            }
+
+            if (!channelHistories[targetChannel]) {
+              channelHistories[targetChannel] = [];
+            }
+
+            channelHistories[targetChannel].push({
+              sender: m.sender || (isGroup ? 'Group Member' : handle),
               text: m.text || '',
               isFile: m.isFile || false,
               filename: m.filename || '',
@@ -363,9 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
               isYou: false
             });
           });
-          if (activeChannel.toUpperCase() === handle.toUpperCase()) {
-            renderCurrentChannel();
-          }
+
+          renderCurrentChannel();
         }
       }
     } catch (e) {
