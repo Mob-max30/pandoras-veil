@@ -252,8 +252,13 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	respHandle := info.Handle
+	if respHandle == "" {
+		respHandle = handle
+	}
+
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"handle":      info.Handle,
+		"handle":      respHandle,
 		"publicKey":   info.PublicKey,
 		"fingerprint": info.Fingerprint,
 	})

@@ -56,6 +56,8 @@ function loadPersistedData() {
         const savedDefaultTTL = localStorage.getItem('pandora_default_ttl_v6');
 
         state.contacts = savedContacts ? JSON.parse(savedContacts) : [];
+        // Sanitize any empty or invalid contact entries
+        state.contacts = state.contacts.filter(c => c && c.handle && c.handle.trim() !== '');
         state.conversations = savedConvs ? JSON.parse(savedConvs) : {};
         state.convTTL = savedTTL ? JSON.parse(savedTTL) : {};
         state.defaultTTL = savedDefaultTTL ? parseInt(savedDefaultTTL, 10) : 300;
@@ -89,6 +91,7 @@ function savePersistedData() {
 }
 
 // DOM Elements
+const myHandleLabelEl = document.getElementById('my-handle-label');
 const myFingerprintEl = document.getElementById('my-fingerprint');
 const directChatsListEl = document.getElementById('direct-chats-list');
 const groupChatsListEl = document.getElementById('group-chats-list');
@@ -111,7 +114,6 @@ const initOverlayEl = document.getElementById('init-overlay');
 const initHandleInputEl = document.getElementById('init-handle-input');
 const initErrorMsgEl = document.getElementById('init-error-msg');
 const initSubmitBtnEl = document.getElementById('init-submit-button');
-const optionsDropdownEl = document.getElementById('options-dropdown');
 
 // 1. Initialize App & Connect to Stream
 async function initApp() {
@@ -133,7 +135,8 @@ async function initApp() {
             state.myPublicKey = data.publicKey;
             state.serverConnected = true;
 
-            myFingerprintEl.textContent = state.myFingerprint;
+            if (myHandleLabelEl) myHandleLabelEl.textContent = state.myHandle;
+            if (myFingerprintEl) myFingerprintEl.textContent = state.myFingerprint;
             hideInitOverlay();
         } else {
             showInitOverlay();
@@ -341,11 +344,15 @@ function selectContact(handle) {
 }
 
 function touchContact(handle, lastMsgText, timestamp, senderName, fp, pk, type, members) {
+    if (!handle || typeof handle !== 'string' || !handle.trim()) return;
+    handle = handle.trim();
+    const displayName = (senderName && typeof senderName === 'string' && senderName.trim()) ? senderName.trim() : handle;
+
     let contact = state.contacts.find(c => c.handle === handle);
     if (!contact) {
         contact = {
             handle: handle,
-            name: senderName || handle,
+            name: displayName,
             fp: fp || 'Verified',
             publicKey: pk || '',
             type: type || (handle.includes(',') ? 'group' : 'dm'),
@@ -357,6 +364,7 @@ function touchContact(handle, lastMsgText, timestamp, senderName, fp, pk, type, 
     } else {
         contact.lastMessage = lastMsgText;
         contact.time = timestamp;
+        if (displayName) contact.name = displayName;
         if (fp) contact.fp = fp;
         if (pk) contact.publicKey = pk;
         state.contacts = [contact, ...state.contacts.filter(c => c.handle !== handle)];
@@ -777,8 +785,9 @@ async function startNewPeerFromModal() {
         const data = await res.json();
 
         if (res.ok && data.publicKey) {
-            touchContact(data.handle, 'Connected', formatTime(new Date()), data.handle, data.fingerprint, data.publicKey, 'dm');
-            selectContact(data.handle);
+            const peerHandle = (data.handle && data.handle.trim()) ? data.handle.trim() : handle;
+            touchContact(peerHandle, 'Connected', formatTime(new Date()), peerHandle, data.fingerprint, data.publicKey, 'dm');
+            selectContact(peerHandle);
             closeModal();
         } else {
             errEl.textContent = data.error || `User '${handle}' does not exist on the relay server. Make sure they have initialized first.`;
