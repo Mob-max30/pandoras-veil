@@ -54,6 +54,8 @@ func main() {
 		exitCode = runRead(args, ui, apiClient)
 	case "chat":
 		exitCode = runChat(args, ui, apiClient)
+	case "tui":
+		exitCode = runTUI(args, ui, apiClient)
 	case "version", "-v", "--version":
 		fmt.Fprintf(ui.Out, "Pandora's Veil CLI v%s\n", Version)
 		exitCode = 0
