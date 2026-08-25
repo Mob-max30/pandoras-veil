@@ -183,7 +183,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		fmt.Fprintf(ui.Out, "%s%s  🔒 PANDORA LIVE RELAY | End-to-End Encrypted Session with %s%s\n", ColorBold, ColorGreen, m.handle, ColorReset)
 		fmt.Fprintf(ui.Out, "%s%s  Device Fingerprint: [%s] | Zero Knowledge Relay Active%s\n", ColorDim, ColorWhite, m.fingerprint, ColorReset)
 	}
-	fmt.Fprintf(ui.Out, "%s%s  Type your message and press [Enter] to send live. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorReset)
+	fmt.Fprintf(ui.Out, "%s%s  Type your message or %s/f%s%s to attach a file. Press [Ctrl+C] to exit.%s\n", ColorDim, ColorCyan, ColorBold+ColorYellow, ColorReset, ColorDim+ColorCyan, ColorReset)
 	fmt.Fprintf(ui.Out, "%s%s================================================================================%s\n\n", ColorBold, ColorCyan, ColorReset)
 
 	stopCh := make(chan struct{})
@@ -276,11 +276,32 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			return 0
 		}
 
+		isFileCmd := false
+		var filePath string
+
+		if text == "/f" || text == "/file" || text == "/attach" || text == "/sendfile" {
+			isFileCmd = true
+			fmt.Fprintf(ui.Out, "%s[📁 ATTACH FILE]%s Enter file path to send (e.g. ./image.png or ./report.pdf): ", ColorYellow, ColorReset)
+			if scanner.Scan() {
+				filePath = strings.TrimSpace(scanner.Text())
+			}
+			if filePath == "" {
+				ui.Info("File attachment cancelled.")
+				promptPrompt()
+				continue
+			}
+		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/attach ") || strings.HasPrefix(text, "/sendfile ") {
+			isFileCmd = true
+			parts := strings.SplitN(text, " ", 2)
+			if len(parts) > 1 {
+				filePath = strings.TrimSpace(parts[1])
+			}
+		}
+
 		// Encrypt message or file locally using age recipient-based encryption
 		var ciphertext []byte
 		var displayMsg string
-		if strings.HasPrefix(text, "/sendfile ") {
-			filePath := strings.TrimSpace(strings.TrimPrefix(text, "/sendfile "))
+		if isFileCmd {
 			fileBytes, err := os.ReadFile(filePath)
 			if err != nil {
 				ui.Error("Failed to read file %s: %v", filePath, err)
