@@ -514,8 +514,15 @@ body.pv-dark-theme {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .pv-card-bubble {
@@ -800,7 +807,7 @@ body.pv-dark-theme {
     height: 48px;
     background-color: var(--pv-bg-input);
     border: 1px solid var(--pv-border);
-    border-radius: 12px;
+    border-radius: 50px;
     padding: 0 16px;
     color: var(--pv-text-main);
     font-size: 0.94rem;
@@ -818,7 +825,7 @@ body.pv-dark-theme {
     background-color: var(--pv-emerald);
     color: #ffffff;
     border: none;
-    border-radius: 12px;
+    border-radius: 50px;
     font-size: 0.96rem;
     font-weight: 600;
     cursor: pointer;
