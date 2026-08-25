@@ -21,6 +21,14 @@ function formatTTL(seconds) {
     return `${Math.floor(seconds / 86400)}d`;
 }
 
+function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 const state = {
     myHandle: '',
     myFingerprint: '',
@@ -395,10 +403,32 @@ function connectSSEStream() {
                 const senderName = data.sender || state.activeTarget;
                 const timestamp = data.timestamp || formatTime(new Date());
                 const msgTTL = data.ttl || getMainTTL(senderName);
+
+                let isFile = false;
+                let fileName = '';
+                let fileSize = '';
+                let fileData = '';
+                let previewText = data.text;
+
+                try {
+                    if (typeof data.text === 'string' && data.text.startsWith('{"__pv_file":true')) {
+                        const fileObj = JSON.parse(data.text);
+                        isFile = true;
+                        fileName = fileObj.name || 'attachment';
+                        fileSize = fileObj.size || '';
+                        fileData = fileObj.data || '';
+                        previewText = `📎 ${fileName}`;
+                    }
+                } catch (e) {}
+
                 const msg = {
                     id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                     sender: senderName,
-                    text: data.text,
+                    text: previewText,
+                    isFile: isFile,
+                    fileName: fileName,
+                    fileSize: fileSize,
+                    fileData: fileData,
                     timestamp: timestamp,
                     ttl: msgTTL,
                     expiresAt: Date.now() + msgTTL * 1000,
@@ -410,7 +440,7 @@ function connectSSEStream() {
                 }
                 state.conversations[senderName].push(msg);
 
-                touchContact(senderName, data.text, timestamp, senderName);
+                touchContact(senderName, previewText, timestamp, senderName);
 
                 if (!state.activeTarget) {
                     selectContact(senderName);
@@ -459,20 +489,37 @@ function appendBubble(msg) {
     groupEl.className = `pv-bubble-group ${msg.isOutgoing ? 'outgoing' : 'incoming'}`;
 
     if (msg.isFile) {
-        // Render File Card
+        // Render File Card with Download Capability
         const fileCard = document.createElement('div');
         fileCard.className = 'pv-file-card';
+        fileCard.style.cursor = msg.fileData ? 'pointer' : 'default';
         fileCard.innerHTML = `
             <div class="pv-file-icon-box">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
             </div>
             <div class="pv-file-meta">
                 <div class="pv-file-name">${msg.fileName || 'file'}</div>
-                <div class="pv-file-size">${msg.fileSize || '2.4 MB'}</div>
-                <div class="pv-file-status">✓ Auto-saved to ./downloads/</div>
+                <div class="pv-file-size">${msg.fileSize || 'Attachment'}</div>
+                <div class="pv-file-status">${msg.fileData ? '⬇ Click to download' : '✓ Transmitted'}</div>
             </div>
         `;
+        if (msg.fileData) {
+            fileCard.onclick = () => {
+                const a = document.createElement('a');
+                a.href = msg.fileData;
+                a.download = msg.fileName || 'attachment';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+        }
         groupEl.appendChild(fileCard);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'pv-bubble-meta';
+        const ttlLabel = msg.ttl ? ` • ${formatTTL(msg.ttl)}` : '';
+        metaEl.textContent = (msg.isOutgoing ? 'File Encrypted & Dispatched' : 'File Decrypted locally') + ttlLabel;
+        groupEl.appendChild(metaEl);
     } else {
         const cardEl = document.createElement('div');
         cardEl.className = 'pv-card-bubble';
@@ -569,6 +616,103 @@ async function handleSendMessage(e) {
             isOutgoing: false
         });
     }
+}
+
+// 6b. Native File Attachment Selection & Dispatch
+function triggerFileInput() {
+    if (!state.activeTarget) {
+        openNewChatModal();
+        return;
+    }
+    const fileInput = document.getElementById('file-attachment-input');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.click();
+    }
+}
+
+async function handleFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !state.activeTarget) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const base64Data = e.target.result;
+        const filePayload = JSON.stringify({
+            __pv_file: true,
+            name: file.name,
+            size: formatBytes(file.size),
+            type: file.type || 'application/octet-stream',
+            data: base64Data
+        });
+
+        const timestamp = formatTime(new Date());
+        const effectiveTTL = state.customMsgTTL > 0 ? state.customMsgTTL : getMainTTL(state.activeTarget);
+        const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+        const msg = {
+            id: msgId,
+            sender: state.myHandle,
+            isFile: true,
+            fileName: file.name,
+            fileSize: formatBytes(file.size),
+            fileData: base64Data,
+            text: `📎 ${file.name}`,
+            timestamp: timestamp,
+            ttl: effectiveTTL,
+            expiresAt: Date.now() + effectiveTTL * 1000,
+            isOutgoing: true
+        };
+
+        if (!state.conversations[state.activeTarget]) {
+            state.conversations[state.activeTarget] = [];
+        }
+        state.conversations[state.activeTarget].push(msg);
+        appendBubble(msg);
+
+        touchContact(state.activeTarget, `📎 ${file.name}`, timestamp);
+
+        try {
+            const token = getAuthToken();
+            const payload = {
+                target: state.activeTarget,
+                isGroup: state.isGroup,
+                groupMembers: state.groupMembers,
+                text: filePayload,
+                ttl: effectiveTTL,
+                burn: state.burnAfterReading
+            };
+
+            const res = await fetch('/api/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Pandora-Token': token
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                appendBubble({
+                    id: 'err_' + Date.now(),
+                    sender: 'SYSTEM',
+                    text: `File delivery failed: ${errData.error || 'Relay error'}`,
+                    timestamp: formatTime(new Date()),
+                    isOutgoing: false
+                });
+            }
+        } catch (err) {
+            appendBubble({
+                id: 'err_' + Date.now(),
+                sender: 'SYSTEM',
+                text: `Network error: ${err.message}`,
+                timestamp: formatTime(new Date()),
+                isOutgoing: false
+            });
+        }
+    };
+    reader.readAsDataURL(file);
 }
 
 // 7. Expired Message Pruner
