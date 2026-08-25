@@ -42,6 +42,12 @@ func StartShellServer(port int, apiClient client.RelayClient) (string, error) {
 			json.NewEncoder(w).Encode(map[string]interface{}{"initialized": false})
 			return
 		}
+
+		// Ensure handle is actively registered on cloud relay
+		go func(h, pk string) {
+			_, _ = apiClient.RegisterKey(h, pk)
+		}(id.Handle, id.PublicKey)
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"initialized": true,
 			"handle":      id.Handle,
