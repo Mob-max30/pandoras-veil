@@ -12,8 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const groupList = document.getElementById('group-list');
   const addDmBtn = document.getElementById('add-dm-btn');
   const addGroupBtn = document.getElementById('add-group-btn');
+  const addMemberBtn = document.getElementById('add-member-btn');
 
-  let activeChannel = '#Development';
+  let activeChannel = '';
   let activeTTL = 300;
   let isBurnActive = true;
   let currentHostHandle = 'PV-DEVICE';
@@ -24,10 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const metaHostEl = document.getElementById('meta-host');
   const changeHandleBtn = document.getElementById('change-handle-btn');
 
-  // In-Memory Per-Channel Message Store
-  const channelHistories = {
-    '#Development': []
-  };
+  // In-Memory Per-Channel Message & Member Store
+  const channelHistories = {};
+  const groupMembers = {};
 
   async function fetchIdentity() {
     try {
@@ -129,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         li.remove();
         delete channelHistories[name];
+        delete groupMembers[name];
 
         if (list.querySelectorAll('.channel-item').length === 0) {
           list.innerHTML = `<li class="empty-hint">(No ${isGroup ? 'groups' : 'active chats'} yet)</li>`;
@@ -139,7 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (first) {
             first.click();
           } else {
-            addChannelItem('#Development', true, true);
+            activeChannel = '';
+            renderCurrentChannel();
           }
         }
       };
@@ -169,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = JSON.parse(e.data);
         if (!data || !data.sender) return;
 
-        const senderHandle = data.sender.toUpperCase();
+        const senderHandle = data.sender;
         addChannelItem(senderHandle, false, false);
 
         if (!channelHistories[senderHandle]) {
@@ -190,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         channelHistories[senderHandle].push(msgObj);
 
-        if (activeChannel.toUpperCase() === senderHandle) {
+        if (activeChannel === senderHandle) {
           renderCurrentChannel();
         }
       } catch (err) {
@@ -229,19 +231,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function renderCurrentChannel() {
     msgContainer.innerHTML = '';
-    const history = channelHistories[activeChannel] || [];
 
-    if (history.length === 0) {
-      const isGroup = activeChannel.startsWith('#');
-      const systemNotice = document.createElement('div');
-      systemNotice.className = 'chat-bubble-row left';
-      systemNotice.innerHTML = `
+    if (!activeChannel) {
+      headerChannelTitle.textContent = 'NO ACTIVE CHAT';
+      cmdChannelTag.textContent = '—';
+      recipMeta.textContent = '—';
+      const recipFpRow = document.getElementById('recip-fp-row');
+      const groupMembersRow = document.getElementById('group-members-row');
+      if (recipFpRow) recipFpRow.style.display = 'none';
+      if (groupMembersRow) groupMembersRow.style.display = 'none';
+
+      const emptyNotice = document.createElement('div');
+      emptyNotice.className = 'chat-bubble-row left';
+      emptyNotice.innerHTML = `
         <div class="bubble-meta">[SYSTEM]</div>
         <div class="chat-bubble left-bubble">
-          🔒 <strong>${isGroup ? 'Encrypted Group Room' : 'Encrypted Direct Session'}: ${escapeHTML(activeChannel)}</strong><br>
-          Zero-Knowledge Relay active. Type a message or click <strong>/f attach</strong> below.
+          🔒 <strong>Pandora's Veil Zero-Knowledge Relay</strong><br>
+          Click <strong>+ DM</strong> to message a user or <strong>+ Group</strong> to create an encrypted room with members.
         </div>
       `;
+      msgContainer.appendChild(emptyNotice);
+      return;
+    }
+
+    const history = channelHistories[activeChannel] || [];
+    const isGroup = activeChannel.startsWith('#');
+
+    if (history.length === 0) {
+      const members = groupMembers[activeChannel] || [];
+      const systemNotice = document.createElement('div');
+      systemNotice.className = 'chat-bubble-row left';
+      if (isGroup) {
+        const memberListStr = members.length > 0 ? members.join(', ') : 'None yet (click <strong>+ Member</strong> on the right)';
+        systemNotice.innerHTML = `
+          <div class="bubble-meta">[SYSTEM]</div>
+          <div class="chat-bubble left-bubble">
+            🔒 <strong>Encrypted Multi-Recipient Room: ${escapeHTML(activeChannel)}</strong><br>
+            👥 <strong>Members (${members.length}):</strong> ${escapeHTML(memberListStr)}<br>
+            Every message is encrypted with <em>filippo.io/age</em> multi-recipient keys. Type below or click <strong>/f attach</strong>.
+          </div>
+        `;
+      } else {
+        systemNotice.innerHTML = `
+          <div class="bubble-meta">[SYSTEM]</div>
+          <div class="chat-bubble left-bubble">
+            🔒 <strong>Encrypted Direct Session: ${escapeHTML(activeChannel)}</strong><br>
+            Zero-Knowledge Relay active. Type a message or click <strong>/f attach</strong> below.
+          </div>
+        `;
+      }
       msgContainer.appendChild(systemNotice);
     } else {
       history.forEach(msg => {
@@ -273,7 +311,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const recipFpRow = document.getElementById('recip-fp-row');
     const recipFpVal = document.getElementById('recip-fp-val');
-    if (!activeChannel.startsWith('#')) {
+    const groupMembersRow = document.getElementById('group-members-row');
+    const groupMembersVal = document.getElementById('group-members-val');
+
+    if (isGroup) {
+      if (recipFpRow) recipFpRow.style.display = 'none';
+      if (groupMembersRow) groupMembersRow.style.display = 'flex';
+      const members = groupMembers[activeChannel] || [];
+      if (groupMembersVal) {
+        groupMembersVal.textContent = members.length > 0 ? members.join(', ') : 'None (click + Member)';
+      }
+    } else {
+      if (groupMembersRow) groupMembersRow.style.display = 'none';
       if (recipFpRow) recipFpRow.style.display = 'flex';
       if (recipFpVal) {
         recipFpVal.textContent = 'Verifying...';
@@ -289,8 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
           recipFpVal.textContent = 'Offline';
         }
       }
-    } else {
-      if (recipFpRow) recipFpRow.style.display = 'none';
     }
     scrollToBottom();
   }
@@ -326,8 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initialize Default Group
-  addChannelItem('#Development', true, true);
+  renderCurrentChannel();
   fetchIdentity();
 
   // Add DM Button
@@ -338,14 +384,38 @@ document.addEventListener('DOMContentLoaded', () => {
     addChannelItem(cleanHandle, false, true);
   });
 
-  // Add Group Button
+  // Add Group Button (Room Name + Members)
   addGroupBtn.addEventListener('click', () => {
     const name = prompt('Enter group chat room name (e.g., #Alpha_Team):');
     if (!name || !name.trim()) return;
     let cleanGroup = name.trim();
     if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
+
+    const membersInput = prompt(`Enter member handles for ${cleanGroup} (comma-separated, e.g. Ujwal, Pavan, Bob):`);
+    let members = [];
+    if (membersInput && membersInput.trim()) {
+      members = membersInput.split(',').map(m => m.trim()).filter(Boolean);
+    }
+    groupMembers[cleanGroup] = members;
     addChannelItem(cleanGroup, true, true);
   });
+
+  // Add Member to Existing Group Button
+  if (addMemberBtn) {
+    addMemberBtn.addEventListener('click', () => {
+      if (!activeChannel.startsWith('#')) return;
+      const newMember = prompt(`Add member to ${activeChannel} (e.g. Bob, Alice, Ujwal):`);
+      if (!newMember || !newMember.trim()) return;
+      const cleanMember = newMember.trim();
+      if (!groupMembers[activeChannel]) {
+        groupMembers[activeChannel] = [];
+      }
+      if (!groupMembers[activeChannel].includes(cleanMember)) {
+        groupMembers[activeChannel].push(cleanMember);
+      }
+      renderCurrentChannel();
+    });
+  }
 
   function scrollToBottom() {
     setTimeout(() => {
@@ -373,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
           target: activeChannel,
           isGroup: activeChannel.startsWith('#'),
+          groupMembers: groupMembers[activeChannel] || [],
           file: {
             filename: file.name,
             dataB64: b64Data
@@ -428,6 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const text = cmdInput.value.trim();
       if (!text) return;
 
+      if (!activeChannel) {
+        alert('Please select or create a DM or Group channel first.');
+        return;
+      }
+
       if (text === '/f' || text === '/file' || text === '/attach') {
         triggerFileAttachment();
         cmdInput.value = '';
@@ -437,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = {
         target: activeChannel,
         isGroup: activeChannel.startsWith('#'),
+        groupMembers: groupMembers[activeChannel] || [],
         text: text,
         ttl: activeTTL,
         burn: isBurnActive

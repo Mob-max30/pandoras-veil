@@ -70,9 +70,14 @@ func EncryptMulti(plaintext []byte, recipientPublicKeys ...string) ([]byte, erro
 
 // FilePayload represents an encapsulated binary file payload for secure sharing.
 type FilePayload struct {
-	IsFile   bool   `json:"is_file"`
-	Filename string `json:"filename"`
-	DataB64  string `json:"data_b64"`
+	IsFile    bool   `json:"is_file"`
+	IsFileAlt bool   `json:"__pv_file"`
+	Filename  string `json:"filename"`
+	NameAlt   string `json:"name"`
+	Size      string `json:"size"`
+	Type      string `json:"type"`
+	DataB64   string `json:"data_b64"`
+	DataURL   string `json:"data"`
 }
 
 // EncodeFilePayload serializes a binary file and its filename into an age-encryptable byte slice.
