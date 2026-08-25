@@ -307,7 +307,6 @@ type RelayClient interface {
 	GetPaste(id string) (string, error)
 	FetchInbox(recipient, sender string) ([]InboxMessage, error)
 	ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error
-	FetchInbox(recipient, sender string) ([]StreamEvent, error)
 	Health() error
 }
 
@@ -656,33 +655,6 @@ func (c *HTTPClient) Health() error {
 	return nil
 }
 
-func (c *HTTPClient) FetchInbox(recipient, sender string) ([]StreamEvent, error) {
-	inboxURL := fmt.Sprintf("%s/inbox?recipient=%s&sender=%s", c.BaseURL, url.QueryEscape(recipient), url.QueryEscape(sender))
-	resp, err := c.HTTPClient.Get(inboxURL)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch inbox failed with status %d", resp.StatusCode)
-	}
-
-	var res struct {
-		Messages []StreamEvent `json:"messages"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("failed to decode inbox response: %w", err)
-	}
-
-	for i := range res.Messages {
-		if decoded, err := base64.StdEncoding.DecodeString(res.Messages[i].Ciphertext); err == nil {
-			res.Messages[i].Ciphertext = string(decoded)
-		}
-	}
-	return res.Messages, nil
-}
-
 // MockClient is an in-memory mock implementation of RelayClient for standalone CLI testing
 type MockClient struct {
 	Keys   map[string]*KeyInfo
@@ -774,10 +746,6 @@ func (m *MockClient) GetPaste(id string) (string, error) {
 func (m *MockClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
 	<-stopCh
 	return nil
-}
-
-func (m *MockClient) FetchInbox(recipient, sender string) ([]StreamEvent, error) {
-	return nil, nil
 }
 
 func (m *MockClient) Health() error {

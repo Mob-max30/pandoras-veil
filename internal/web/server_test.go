@@ -62,7 +62,7 @@ func (m *mockRelayClient) GetPaste(id string) (string, error) {
 	return "ciphertext_data", nil
 }
 
-func (m *mockRelayClient) FetchInbox(recipient, sender string) ([]client.StreamEvent, error) {
+func (m *mockRelayClient) FetchInbox(recipient, sender string) ([]client.InboxMessage, error) {
 	return nil, nil
 }
 
