@@ -133,7 +133,7 @@ pv chat --group dev-team
 
 Launch the full-screen terminal TUI:
 ```bash
-pv tui
+pv shell
 ```
 
 ---
@@ -240,7 +240,7 @@ Core Commands:
   identity   Display local device credentials and relay status
   run        Launch local web dashboard on http://localhost:8080
   chat       Start interactive terminal chat session with peer or group
-  tui        Launch terminal user interface
+  shell      Launch terminal user interface
   send       Encrypt and deposit a secret payload or file
   read       Retrieve and decrypt a targeted secret payload
   version    Display client version and build metadata

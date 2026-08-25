@@ -53,12 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function promptForHandle() {
-    const input = prompt('Enter your preferred device handle (e.g., PV-UJWAL):', currentHostHandle === 'PV-DEVICE' ? 'PV-USER' : currentHostHandle);
+    const input = prompt('Enter your preferred device handle (e.g. Ujwal, Bob, PV-Alice):', currentHostHandle === 'PV-DEVICE' ? '' : currentHostHandle);
     if (!input || !input.trim()) return;
-    let chosen = input.trim();
-    if (!chosen.toUpperCase().startsWith('PV-')) {
-      chosen = 'PV-' + chosen.toUpperCase();
-    }
+    const chosen = input.trim();
     try {
       const res = await fetch('/api/init', {
         method: 'POST',
@@ -86,8 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let name = rawName.trim();
     if (isGroup) {
       if (!name.startsWith('#')) name = '#' + name;
-    } else {
-      name = name.toUpperCase();
     }
 
     const list = isGroup ? groupList : dmList;
@@ -337,12 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add DM Button
   addDmBtn.addEventListener('click', () => {
-    const handle = prompt('Enter recipient handle to DM (e.g., PV-UJWAL, BOB, ALICE):');
+    const handle = prompt('Enter recipient handle to DM (e.g., Ujwal, Bob, Alice):');
     if (!handle || !handle.trim()) return;
-    let cleanHandle = handle.trim().toUpperCase();
-    if (!cleanHandle.startsWith('PV-') && !cleanHandle.startsWith('#')) {
-      cleanHandle = 'PV-' + cleanHandle;
-    }
+    const cleanHandle = handle.trim();
     addChannelItem(cleanHandle, false, true);
   });
 
