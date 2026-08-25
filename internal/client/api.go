@@ -3,29 +3,52 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
 const DefaultRelayURL = "https://pandoras-veil.onrender.com"
 
-// Common errors returned by the relay client
+// Standard domain and HTTP errors
 var (
-	ErrNotFound         = errors.New("resource not found or already consumed/expired")
-	ErrConflict         = errors.New("handle already registered")
-	ErrRelayUnreachable = errors.New("unable to reach relay backend")
+	ErrNotFound          = errors.New("resource not found or already consumed/expired")
+	ErrConflict          = errors.New("handle already registered")
+	ErrRelayUnreachable  = errors.New("unable to reach relay backend")
+	ErrKeyNotFound       = errors.New("recipient handle not found")
+	ErrKeyConflict       = errors.New("handle already registered")
+	ErrPasteNotFound     = errors.New("paste not found or already consumed")
+	ErrInvalidRequest    = errors.New("invalid request parameters")
+	ErrServerError       = errors.New("relay server error")
+	ErrNetwork           = errors.New("network error connecting to relay server")
+	ErrMalformedResponse = errors.New("malformed response received from relay server")
 )
 
-// KeyRegistrationRequest represents the payload for registering a public key
-type KeyRegistrationRequest struct {
+// RegisterKeyRequest represents the payload for POST /keys.
+type RegisterKeyRequest struct {
 	Handle    string `json:"handle,omitempty"`
 	PublicKey string `json:"public_key"`
+}
+
+type KeyRegistrationRequest = RegisterKeyRequest
+
+// RegisterKeyResponse represents the response for POST /keys.
+type RegisterKeyResponse struct {
+	Handle      string `json:"handle"`
+	Fingerprint string `json:"fingerprint"`
+}
+
+// KeyResponse represents the response for GET /keys/:handle.
+type KeyResponse struct {
+	PublicKey   string `json:"public_key"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 // KeyInfo represents public key and fingerprint response
@@ -35,7 +58,14 @@ type KeyInfo struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-// PasteCreateRequest represents payload to store encrypted secret
+// CreatePasteRequest represents the payload for POST /paste.
+type CreatePasteRequest struct {
+	Ciphertext       []byte `json:"ciphertext"`
+	TTLSeconds       int    `json:"ttl_seconds"`
+	BurnAfterReading bool   `json:"burn_after_reading"`
+}
+
+// PasteCreateRequest represents payload to store encrypted secret for CLI
 type PasteCreateRequest struct {
 	Ciphertext       string `json:"ciphertext"`
 	Recipient        string `json:"recipient,omitempty"`
@@ -44,9 +74,16 @@ type PasteCreateRequest struct {
 	BurnAfterReading bool   `json:"burn_after_reading"`
 }
 
-// PasteCreateResponse represents response after creating a paste
-type PasteCreateResponse struct {
+// CreatePasteResponse represents the response for POST /paste.
+type CreatePasteResponse struct {
 	ID string `json:"id"`
+}
+
+type PasteCreateResponse = CreatePasteResponse
+
+// GetPasteResponse represents the response for GET /paste/:id.
+type GetPasteResponse struct {
+	Ciphertext []byte `json:"ciphertext"`
 }
 
 // PasteResponse represents retrieved ciphertext
@@ -61,8 +98,206 @@ type StreamEvent struct {
 	Sender     string `json:"sender,omitempty"`
 }
 
-// Client defines the contract for relay communication
-type Client interface {
+// Option configures custom client settings.
+type Option func(*Client)
+
+// WithHTTPClient sets a custom http.Client.
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(c *Client) {
+		if httpClient != nil {
+			c.httpClient = httpClient
+		}
+	}
+}
+
+// Client provides HTTP access to the Pandora's Veil relay backend with context support.
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// NewClient constructs a new HTTP client for the Pandora's Veil relay.
+func NewClient(baseURL string, opts ...Option) *Client {
+	c := &Client{
+		baseURL: strings.TrimRight(baseURL, "/"),
+		httpClient: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func (c *Client) RegisterKey(ctx context.Context, handle, publicKey string) (*RegisterKeyResponse, error) {
+	if strings.TrimSpace(publicKey) == "" {
+		return nil, fmt.Errorf("%w: public key cannot be empty", ErrInvalidRequest)
+	}
+
+	reqBody := RegisterKeyRequest{
+		Handle:    strings.TrimSpace(handle),
+		PublicKey: strings.TrimSpace(publicKey),
+	}
+
+	var respObj RegisterKeyResponse
+	err := c.doJSON(ctx, http.MethodPost, "/keys", reqBody, &respObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return &respObj, nil
+}
+
+func (c *Client) GetKey(ctx context.Context, handle string) (*KeyResponse, error) {
+	trimmedHandle := strings.TrimSpace(handle)
+	if trimmedHandle == "" {
+		return nil, fmt.Errorf("%w: handle cannot be empty", ErrInvalidRequest)
+	}
+
+	endpoint := fmt.Sprintf("/keys/%s", url.PathEscape(trimmedHandle))
+	var respObj KeyResponse
+	err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &respObj)
+	if err != nil {
+		if errors.Is(err, ErrKeyNotFound) {
+			return nil, ErrKeyNotFound
+		}
+		return nil, err
+	}
+
+	return &respObj, nil
+}
+
+func (c *Client) CreatePaste(ctx context.Context, ciphertext []byte, ttlSeconds int, burnAfterReading bool) (*CreatePasteResponse, error) {
+	if len(ciphertext) == 0 {
+		return nil, fmt.Errorf("%w: ciphertext payload cannot be empty", ErrInvalidRequest)
+	}
+
+	reqBody := CreatePasteRequest{
+		Ciphertext:       ciphertext,
+		TTLSeconds:       ttlSeconds,
+		BurnAfterReading: burnAfterReading,
+	}
+
+	var respObj CreatePasteResponse
+	err := c.doJSON(ctx, http.MethodPost, "/paste", reqBody, &respObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return &respObj, nil
+}
+
+func (c *Client) GetPaste(ctx context.Context, id string) (*GetPasteResponse, error) {
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: paste id cannot be empty", ErrInvalidRequest)
+	}
+
+	endpoint := fmt.Sprintf("/paste/%s", url.PathEscape(trimmedID))
+	var respObj PasteResponse
+	err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &respObj)
+	if err != nil {
+		if errors.Is(err, ErrKeyNotFound) {
+			return nil, ErrPasteNotFound
+		}
+		return nil, err
+	}
+
+	rawCiphertext := []byte(respObj.Ciphertext)
+	if decoded, err := base64.StdEncoding.DecodeString(respObj.Ciphertext); err == nil && len(decoded) > 0 {
+		rawCiphertext = decoded
+	}
+
+	return &GetPasteResponse{Ciphertext: rawCiphertext}, nil
+}
+
+func (c *Client) Health(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/health", nil)
+	if err != nil {
+		return fmt.Errorf("%w: failed to build health request: %v", ErrInvalidRequest, err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrNetwork, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%w: server returned status %d", ErrServerError, resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *Client) doJSON(ctx context.Context, method, path string, reqBody interface{}, respTarget interface{}) error {
+	fullURL := c.baseURL + path
+
+	var bodyReader io.Reader
+	if reqBody != nil {
+		jsonBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return fmt.Errorf("%w: failed to marshal request body: %v", ErrInvalidRequest, err)
+		}
+		bodyReader = bytes.NewReader(jsonBytes)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
+	if err != nil {
+		return fmt.Errorf("%w: failed to create HTTP request: %v", ErrInvalidRequest, err)
+	}
+
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrNetwork, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return mapHTTPError(resp.StatusCode, path)
+	}
+
+	if respTarget != nil {
+		respBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("%w: failed to read response body: %v", ErrNetwork, err)
+		}
+
+		if err := json.Unmarshal(respBytes, respTarget); err != nil {
+			return fmt.Errorf("%w: %v", ErrMalformedResponse, err)
+		}
+	}
+
+	return nil
+}
+
+func mapHTTPError(statusCode int, path string) error {
+	switch statusCode {
+	case http.StatusNotFound:
+		if strings.HasPrefix(path, "/paste/") {
+			return ErrPasteNotFound
+		}
+		return ErrKeyNotFound
+	case http.StatusConflict:
+		return ErrKeyConflict
+	case http.StatusBadRequest:
+		return ErrInvalidRequest
+	default:
+		if statusCode >= 500 {
+			return ErrServerError
+		}
+		return fmt.Errorf("%w: server returned status %d", ErrServerError, statusCode)
+	}
+}
+
+// RelayClient defines the contract for CLI relay communication
+type RelayClient interface {
 	RegisterKey(handle, publicKey string) (*KeyInfo, error)
 	GetKey(handle string) (*KeyInfo, error)
 	PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error)
@@ -72,13 +307,13 @@ type Client interface {
 	Health() error
 }
 
-// HTTPClient implements Client using standard net/http
+// HTTPClient implements RelayClient using standard net/http
 type HTTPClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// NewHTTPClient creates a new relay HTTP client
+// NewHTTPClient creates a new relay HTTP client for CLI
 func NewHTTPClient(baseURL string) *HTTPClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	if baseURL == "" {
@@ -92,7 +327,6 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 	}
 }
 
-// RegisterKey calls POST /keys
 func (c *HTTPClient) RegisterKey(handle, publicKey string) (*KeyInfo, error) {
 	reqBody := KeyRegistrationRequest{
 		Handle:    handle,
@@ -124,9 +358,13 @@ func (c *HTTPClient) RegisterKey(handle, publicKey string) (*KeyInfo, error) {
 	return &keyInfo, nil
 }
 
-// GetKey calls GET /keys/:handle
 func (c *HTTPClient) GetKey(handle string) (*KeyInfo, error) {
-	resp, err := c.HTTPClient.Get(fmt.Sprintf("%s/keys/%s", c.BaseURL, handle))
+	trimmedHandle := strings.TrimSpace(handle)
+	if trimmedHandle == "" {
+		return nil, fmt.Errorf("%w: handle cannot be empty", ErrInvalidRequest)
+	}
+
+	resp, err := c.HTTPClient.Get(fmt.Sprintf("%s/keys/%s", c.BaseURL, url.PathEscape(trimmedHandle)))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
 	}
@@ -147,7 +385,6 @@ func (c *HTTPClient) GetKey(handle string) (*KeyInfo, error) {
 	return &keyInfo, nil
 }
 
-// PostPaste calls POST /paste
 func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReading bool) (string, error) {
 	b64Ciphertext := ciphertext
 	if _, err := base64.StdEncoding.DecodeString(ciphertext); err != nil {
@@ -182,7 +419,6 @@ func (c *HTTPClient) PostPaste(ciphertext string, ttlSeconds int, burnAfterReadi
 	return createResp.ID, nil
 }
 
-// PostChatMessage calls POST /paste with recipient and sender routing metadata
 func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (string, error) {
 	b64Ciphertext := ciphertext
 	if _, err := base64.StdEncoding.DecodeString(ciphertext); err != nil {
@@ -219,7 +455,6 @@ func (c *HTTPClient) PostChatMessage(recipient, sender, ciphertext string) (stri
 	return createResp.ID, nil
 }
 
-// ListenStream opens an SSE connection to GET /stream?handle=<handle> and streams incoming events
 func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent), stopCh <-chan struct{}) error {
 	streamURL := fmt.Sprintf("%s/stream?handle=%s", c.BaseURL, handle)
 	req, err := http.NewRequest("GET", streamURL, nil)
@@ -228,7 +463,6 @@ func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent)
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	// Use custom client without short timeout for long-lived SSE stream
 	streamClient := &http.Client{Timeout: 0}
 	resp, err := streamClient.Do(req)
 	if err != nil {
@@ -262,9 +496,13 @@ func (c *HTTPClient) ListenStream(handle string, onMessage func(msg StreamEvent)
 	return nil
 }
 
-// GetPaste calls GET /paste/:id
 func (c *HTTPClient) GetPaste(id string) (string, error) {
-	resp, err := c.HTTPClient.Get(fmt.Sprintf("%s/paste/%s", c.BaseURL, id))
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return "", fmt.Errorf("%w: paste id cannot be empty", ErrInvalidRequest)
+	}
+
+	resp, err := c.HTTPClient.Get(fmt.Sprintf("%s/paste/%s", c.BaseURL, url.PathEscape(trimmedID)))
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrRelayUnreachable, err)
 	}
@@ -288,7 +526,6 @@ func (c *HTTPClient) GetPaste(id string) (string, error) {
 	return pasteResp.Ciphertext, nil
 }
 
-// Health calls GET /health
 func (c *HTTPClient) Health() error {
 	resp, err := c.HTTPClient.Get(c.BaseURL + "/health")
 	if err != nil {
@@ -302,7 +539,7 @@ func (c *HTTPClient) Health() error {
 	return nil
 }
 
-// MockClient is an in-memory mock implementation of Client for standalone CLI testing
+// MockClient is an in-memory mock implementation of RelayClient for standalone CLI testing
 type MockClient struct {
 	Keys   map[string]*KeyInfo
 	Pastes map[string]PasteCreateRequest

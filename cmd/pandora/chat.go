@@ -16,7 +16,7 @@ import (
 )
 
 // runChat handles 'pandora chat' command
-func runChat(args []string, ui *UI, apiClient client.Client) int {
+func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
@@ -110,7 +110,7 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 	// 6. Background Listener Goroutine (SSE Stream - Left Aligned)
 	go func() {
 		_ = apiClient.ListenStream(localIdFile.Handle, func(msg client.StreamEvent) {
-			plaintext, err := crypto.Decrypt(msg.Ciphertext, devIdentity.Identity)
+			plaintext, err := crypto.Decrypt([]byte(msg.Ciphertext), devIdentity)
 			if err != nil {
 				// Silently skip corrupted or unaddressed messages
 				return
@@ -170,7 +170,7 @@ func runChat(args []string, ui *UI, apiClient client.Client) int {
 		}
 
 		// Send live message envelope to relay
-		_, err = apiClient.PostChatMessage(*withFlag, localIdFile.Handle, ciphertext)
+		_, err = apiClient.PostChatMessage(*withFlag, localIdFile.Handle, string(ciphertext))
 		if err != nil {
 			ui.Error("Delivery failed: %v", err)
 			promptPrompt()

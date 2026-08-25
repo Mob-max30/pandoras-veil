@@ -11,7 +11,7 @@ import (
 )
 
 // runInit handles 'pandora init' command
-func runInit(args []string, ui *UI, apiClient client.Client) int {
+func runInit(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
@@ -102,8 +102,12 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 		return 1
 	}
 
+	pubKey := crypto.GetPublicKey(deviceIdentity)
+	privKey := deviceIdentity.String()
+	fp := crypto.Fingerprint(pubKey)
+
 	ui.Info("Registering public key with relay (%s)...", *relayFlag)
-	regInfo, err := apiClient.RegisterKey(*handleFlag, deviceIdentity.PublicKey)
+	regInfo, err := apiClient.RegisterKey(*handleFlag, pubKey)
 	if err != nil {
 		if err == client.ErrConflict {
 			ui.Error("Handle '%s' is already registered on the relay! Please choose a different handle name or omit --handle for an automatic unique handle.", *handleFlag)
@@ -117,9 +121,9 @@ func runInit(args []string, ui *UI, apiClient client.Client) int {
 	// Save identity locally with 0600 permissions
 	idFile := &storage.IdentityFile{
 		Handle:      regInfo.Handle,
-		PublicKey:   deviceIdentity.PublicKey,
-		PrivateKey:  deviceIdentity.PrivateKey,
-		Fingerprint: deviceIdentity.Fingerprint,
+		PublicKey:   pubKey,
+		PrivateKey:  privKey,
+		Fingerprint: fp,
 	}
 
 	if err := storage.SaveIdentity(targetPath, idFile); err != nil {

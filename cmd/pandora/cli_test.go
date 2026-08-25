@@ -192,7 +192,7 @@ func TestCLI_SaveToFile(t *testing.T) {
 	idFile, _ := storage.LoadIdentity(bobConfig)
 	ciphertext, _ := crypto.Encrypt([]byte("SAVED_SECRET_TEST"), idFile.PublicKey)
 	mockClient.Pastes["pv_save_test"] = client.PasteCreateRequest{
-		Ciphertext: ciphertext,
+		Ciphertext: string(ciphertext),
 	}
 
 	outBuf.Reset()

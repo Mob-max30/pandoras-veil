@@ -9,7 +9,7 @@ import (
 )
 
 // runIdentity handles 'pandora identity' command
-func runIdentity(args []string, ui *UI, apiClient client.Client) int {
+func runIdentity(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("identity", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 

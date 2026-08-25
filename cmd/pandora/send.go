@@ -12,7 +12,7 @@ import (
 )
 
 // runSend handles 'pandora send' command
-func runSend(args []string, ui *UI, apiClient client.Client) int {
+func runSend(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("send", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
@@ -131,7 +131,7 @@ func runSend(args []string, ui *UI, apiClient client.Client) int {
 
 	// 6. Upload Ciphertext to Relay
 	ui.Info("Uploading encrypted envelope to relay (%s)...", *relayFlag)
-	pasteID, err := apiClient.PostPaste(ciphertext, *ttlFlag, *burnFlag)
+	pasteID, err := apiClient.PostPaste(string(ciphertext), *ttlFlag, *burnFlag)
 	if err != nil {
 		ui.Error("Failed to upload secret to relay: %v", err)
 		return 1

@@ -33,7 +33,7 @@ func extractPasteID(input string) string {
 }
 
 // runRead handles 'pandora read' command
-func runRead(args []string, ui *UI, apiClient client.Client) int {
+func runRead(args []string, ui *UI, apiClient client.RelayClient) int {
 	fs := flag.NewFlagSet("read", flag.ContinueOnError)
 	fs.SetOutput(ui.Out)
 
@@ -102,7 +102,7 @@ func runRead(args []string, ui *UI, apiClient client.Client) int {
 
 	// 3. Local Decryption Attempt with Device Key
 	ui.Info("Attempting device-bound decryption...")
-	plaintext, err := crypto.Decrypt(ciphertext, devIdentity.Identity)
+	plaintext, err := crypto.Decrypt([]byte(ciphertext), devIdentity)
 	if err != nil {
 		// Generic security failure message - never leak whether it was wrong key vs corrupted ciphertext
 		ui.Error("ACCESS DENIED: %v", crypto.ErrDecryptionFailed)
