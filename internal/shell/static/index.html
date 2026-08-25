@@ -102,49 +102,70 @@
         </div>
       </section>
 
-      <!-- RIGHT COLUMN: SECURITY & POLICY INSPECTOR -->
+      <!-- RIGHT COLUMN: NAVIGATION & SECURITY GUIDE -->
       <aside class="right-column">
-        <div class="cyber-box inspector-box">
-          <div class="box-header">SECURITY &amp; POLICY</div>
-          <div class="box-body">
-            <div class="policy-badge">POLICY: BURST_MODE_ALPHA</div>
+        <!-- Quick Navigation Guide -->
+        <div class="cyber-box guide-box">
+          <div class="box-header">QUICK NAVIGATION</div>
+          <div class="box-body guide-list">
+            <div class="guide-item">
+              <span class="guide-key">Tab</span>
+              <span class="guide-desc">Cycle active channels</span>
+            </div>
+            <div class="guide-item">
+              <span class="guide-key">+ DM</span>
+              <span class="guide-desc">Start 1-on-1 private chat</span>
+            </div>
+            <div class="guide-item">
+              <span class="guide-key">+ Group</span>
+              <span class="guide-desc">Create group room</span>
+            </div>
+            <div class="guide-item">
+              <span class="guide-key">/f</span>
+              <span class="guide-desc">Attach &amp; send media</span>
+            </div>
+            <div class="guide-item">
+              <span class="guide-key">Ctrl+Q</span>
+              <span class="guide-desc">Exit App Shell</span>
+            </div>
           </div>
         </div>
 
+        <!-- Secret Expiration Policy -->
         <div class="cyber-box deposit-box">
-          <div class="box-header">TTL EXPIRATION</div>
+          <div class="box-header">SECRET LIFECYCLE (TTL)</div>
           <div class="box-body">
-            <div class="object-id">Secret Envelope Lifecycle</div>
             <div class="ttl-selector">
               <button class="ttl-btn" data-ttl="60">60s</button>
-              <button class="ttl-btn active" data-ttl="300">300s</button>
+              <button class="ttl-btn active" data-ttl="300">5m</button>
               <button class="ttl-btn" data-ttl="3600">1h</button>
               <button class="ttl-btn" data-ttl="86400">24h</button>
             </div>
           </div>
         </div>
 
+        <!-- Burn-After-Reading Switch -->
         <div class="cyber-box burn-box">
-          <div class="box-header">BURN-AFTER-READING</div>
+          <div class="box-header">SELF-DESTRUCT POLICY</div>
           <div class="box-body">
             <div class="burn-row">
-              <span class="burn-title">Atomic GETDEL</span>
+              <span class="burn-title">Burn After Reading</span>
               <label class="toggle-switch">
                 <input type="checkbox" id="burn-toggle" checked>
                 <span class="slider round"></span>
               </label>
             </div>
-            <div class="burn-status-pill armed" id="burn-pill">⚡ ARMED (Self-Destruct)</div>
+            <div class="guide-hint">Deletes payload from Redis immediately after first read.</div>
           </div>
         </div>
 
+        <!-- Active Encryption Metadata -->
         <div class="cyber-box key-box">
-          <div class="box-header">KEY METADATA</div>
+          <div class="box-header">SESSION METADATA</div>
           <div class="box-body">
-            <div class="field"><span class="label">Host:</span> <span class="val cyan" id="meta-host">PV-PRANAV</span></div>
-            <div class="field"><span class="label">Target:</span> <span class="val green" id="recip-meta">#Development</span></div>
-            <div class="field"><span class="label">Cipher:</span> <span class="val yellow">filippo.io/age</span></div>
-            <div class="field"><span class="label">Verification:</span> <span class="val green">🔒 Verified</span></div>
+            <div class="field"><span class="label">Device:</span> <span class="val cyan" id="meta-host">PV-PRANAV</span></div>
+            <div class="field"><span class="label">Channel:</span> <span class="val green" id="recip-meta">#Development</span></div>
+            <div class="field"><span class="label">Engine:</span> <span class="val yellow">filippo.io/age</span></div>
           </div>
         </div>
       </aside>

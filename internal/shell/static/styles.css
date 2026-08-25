@@ -206,8 +206,53 @@ body {
   color: var(--green-bright);
 }
 
+.guide-box {
+  border: 1px solid var(--border-cyan);
+}
+
+.guide-box .box-header {
+  color: var(--cyan-primary);
+  border-bottom: 1px solid var(--cyan-dim);
+}
+
+.guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.guide-key {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid var(--cyan-primary);
+  color: var(--cyan-primary);
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.guide-desc {
+  color: var(--text-main);
+}
+
+.guide-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
 /* Right Inspector Column */
-.inspector-box, .deposit-box, .burn-box, .key-box {
+.deposit-box, .burn-box, .key-box {
   border: 1px solid var(--border-pink);
 }
 
