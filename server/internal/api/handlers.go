@@ -34,7 +34,7 @@ type Store interface {
 	Publish(ctx context.Context, channel, message string) error
 	PushInboxMessage(ctx context.Context, recipient, sender, msgJSON string, ttl time.Duration) error
 	GetAndClearInbox(ctx context.Context, recipient, sender string) ([]string, error)
-	FlushAll(ctx context.Context) error
+	GetAllAndClearInbox(ctx context.Context, recipient string) ([]string, error)
 }
 
 // TTLPolicy clamps a caller-requested TTL to the server's configured bounds.
@@ -237,9 +237,17 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	// If session target parameter `with` is set, immediately flush all pending queued inbox messages
+	// Flush pending queued inbox messages immediately upon establishing connection
 	if withParam != "" {
 		queuedMsgs, err := h.Store.GetAndClearInbox(r.Context(), handle, withParam)
+		if err == nil {
+			for _, qm := range queuedMsgs {
+				fmt.Fprintf(w, "data: %s\n\n", qm)
+				flusher.Flush()
+			}
+		}
+	} else {
+		queuedMsgs, err := h.Store.GetAllAndClearInbox(r.Context(), handle)
 		if err == nil {
 			for _, qm := range queuedMsgs {
 				fmt.Fprintf(w, "data: %s\n\n", qm)
@@ -288,12 +296,19 @@ func (h *Handlers) HandleStream(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) FetchInbox(w http.ResponseWriter, r *http.Request) {
 	recipient := r.URL.Query().Get("recipient")
 	sender := r.URL.Query().Get("sender")
-	if recipient == "" || sender == "" {
-		writeError(w, http.StatusBadRequest, "recipient and sender query parameters are required")
+	if recipient == "" {
+		writeError(w, http.StatusBadRequest, "recipient query parameter is required")
 		return
 	}
 
-	msgsRaw, err := h.Store.GetAndClearInbox(r.Context(), recipient, sender)
+	var msgsRaw []string
+	var err error
+	if sender != "" {
+		msgsRaw, err = h.Store.GetAndClearInbox(r.Context(), recipient, sender)
+	} else {
+		msgsRaw, err = h.Store.GetAllAndClearInbox(r.Context(), recipient)
+	}
+
 	if err != nil {
 		h.Logger.Error("fetching inbox", "error", err, "recipient", recipient, "sender", sender)
 		writeError(w, http.StatusServiceUnavailable, "relay storage unavailable")
@@ -354,17 +369,3 @@ func randomHandle() (string, error) {
 	}
 	return "veil-" + hex.EncodeToString(buf), nil
 }
-
-// FlushServer flushes all registered keys, pastes, and inboxes from the relay store.
-func (h *Handlers) FlushServer(w http.ResponseWriter, r *http.Request) {
-	if err := h.Store.FlushAll(r.Context()); err != nil {
-		h.Logger.Error("failed to flush store", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to flush store")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "cleared",
-		"message": "all keys, pastes, and offline inboxes cleared from server",
-	})
-}
-

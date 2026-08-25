@@ -113,12 +113,8 @@ func (f *fakeStore) GetAndClearInbox(_ context.Context, _, _ string) ([]string, 
 	return nil, nil
 }
 
-func (f *fakeStore) FlushAll(_ context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.keys = make(map[string]store.KeyRecord)
-	f.pastes = make(map[string]string)
-	return nil
+func (f *fakeStore) GetAllAndClearInbox(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
 }
 
 func newTestHandlers(fs *fakeStore) *Handlers {
