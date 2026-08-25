@@ -43,36 +43,63 @@ body {
 
 /* Header Window Bar */
 .window-header {
-  background-color: #0D1117;
+  background-color: #0B0E14;
   border-bottom: 1px solid var(--cyan-primary);
   display: flex;
   align-items: center;
-  padding: 6px 14px;
+  justify-content: space-between;
+  padding: 8px 16px;
   position: relative;
 }
 
-.window-controls {
+.pv-brand {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.window-controls .dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+.pv-logo-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--cyan-primary);
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.6));
 }
 
-.window-controls .red { background-color: #FF5F56; }
-.window-controls .yellow { background-color: #FFBD2E; }
-.window-controls .green { background-color: #27C93F; }
+.pv-brand-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.1em;
+  color: var(--cyan-primary);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.pv-version-tag {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan-primary);
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
 
 .window-title {
-  width: 100%;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   letter-spacing: 0.05em;
   color: var(--text-main);
+}
+
+.status-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--green-bright);
+  box-shadow: 0 0 8px var(--green-bright);
+  display: inline-block;
 }
 
 /* 3-Column Workspace Grid */
