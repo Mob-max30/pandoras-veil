@@ -14,6 +14,11 @@ const state = {
     eventSource: null
 };
 
+function getAuthToken() {
+    const meta = document.querySelector('meta[name="pandora-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
 // DOM Elements
 const myHandleEl = document.getElementById('my-handle');
 const myFingerprintEl = document.getElementById('my-fingerprint');
@@ -33,7 +38,10 @@ const modalBodyEl = document.getElementById('modal-body');
 // 1. Initialize Local Identity & Connect to Stream
 async function initApp() {
     try {
-        const res = await fetch('/api/identity');
+        const token = getAuthToken();
+        const res = await fetch('/api/identity', {
+            headers: { 'X-Pandora-Token': token }
+        });
         if (res.ok) {
             const data = await res.json();
             state.myHandle = data.handle || 'PV-LOCAL';
@@ -59,7 +67,9 @@ function connectSSEStream() {
         state.eventSource.close();
     }
 
-    state.eventSource = new EventSource('/api/stream');
+    const token = getAuthToken();
+    const streamURL = token ? `/api/stream?token=${encodeURIComponent(token)}` : '/api/stream';
+    state.eventSource = new EventSource(streamURL);
 
     state.eventSource.onopen = () => {
         relayStatusEl.textContent = 'CLOUD RELAY: CONNECTED';
@@ -143,6 +153,7 @@ async function handleSendMessage(e) {
     });
 
     try {
+        const token = getAuthToken();
         const payload = {
             target: state.activeTarget,
             isGroup: state.isGroup,
@@ -154,7 +165,10 @@ async function handleSendMessage(e) {
 
         const res = await fetch('/api/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Pandora-Token': token
+            },
             body: JSON.stringify(payload)
         });
 
@@ -363,9 +377,13 @@ async function confirmDeposit() {
 
 async function createSecretDeposit(plaintext) {
     try {
+        const token = getAuthToken();
         const res = await fetch('/api/deposit', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Pandora-Token': token
+            },
             body: JSON.stringify({
                 recipient: state.activeTarget,
                 secret: plaintext,

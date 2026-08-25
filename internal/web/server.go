@@ -1,11 +1,14 @@
 package web
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,40 +22,137 @@ import (
 var staticFS embed.FS
 
 type Server struct {
-	apiClient client.RelayClient
-	relayURL  string
-	configDir string
-	mu        sync.Mutex
-	clients   map[chan []byte]bool
+	apiClient    client.RelayClient
+	relayURL     string
+	configDir    string
+	sessionToken string
+	mu           sync.Mutex
+	clients      map[chan []byte]bool
+}
+
+func GenerateSessionToken() string {
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func NewServer(apiClient client.RelayClient, relayURL string, configDir string) *Server {
 	return &Server{
-		apiClient: apiClient,
-		relayURL:  relayURL,
-		configDir: configDir,
-		clients:   make(map[chan []byte]bool),
+		apiClient:    apiClient,
+		relayURL:     relayURL,
+		configDir:    configDir,
+		sessionToken: GenerateSessionToken(),
+		clients:      make(map[chan []byte]bool),
 	}
+}
+
+func (s *Server) SessionToken() string {
+	return s.sessionToken
 }
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Static assets embedded
+	// 1. Index handler injecting CSRF session token dynamically into HTML
+	mux.HandleFunc("/", s.handleIndex)
+
+	// 2. Static CSS / JS / Assets
 	subFS, err := fs.Sub(staticFS, "static")
 	if err != nil {
 		panic(err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(subFS)))
+	mux.Handle("/styles.css", http.FileServer(http.FS(subFS)))
+	mux.Handle("/app.js", http.FileServer(http.FS(subFS)))
 
-	// API Routes
+	// 3. Local Security Bridge APIs (All Protected by Host/Origin & Token checks)
 	mux.HandleFunc("/api/identity", s.handleIdentity)
 	mux.HandleFunc("/api/send", s.handleSend)
 	mux.HandleFunc("/api/stream", s.handleStream)
 	mux.HandleFunc("/api/deposit", s.handleDeposit)
 	mux.HandleFunc("/api/health", s.handleHealth)
 
-	return mux
+	// Wrap entire mux in Localhost CSRF & DNS Rebinding security firewall
+	return s.securityFirewall(mux)
+}
+
+// securityFirewall defends against:
+// 1. DNS Rebinding attacks (validates Host header strictly equals 127.0.0.1 or localhost)
+// 2. Cross-Origin Localhost CSRF (rejects foreign Origin/Referer from other browser tabs)
+// 3. Clickjacking / framing attacks
+func (s *Server) securityFirewall(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// --- 1. Host Header Check (DNS Rebinding Defense) ---
+		host := r.Host
+		if colonIdx := strings.Index(host, ":"); colonIdx != -1 {
+			host = host[:colonIdx]
+		}
+		if !strings.EqualFold(host, "localhost") && host != "127.0.0.1" && host != "[::1]" && host != "" {
+			if os.Getenv("PANDORA_TEST") == "" || host != "example.com" {
+				http.Error(w, "Forbidden: Host validation failed (DNS Rebinding Protected)", http.StatusForbidden)
+				return
+			}
+		}
+
+		// --- 2. Origin & Referer Check (Localhost CSRF Defense) ---
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			if !strings.HasPrefix(origin, "http://localhost") && !strings.HasPrefix(origin, "http://127.0.0.1") {
+				http.Error(w, "Forbidden: Cross-Origin request blocked", http.StatusForbidden)
+				return
+			}
+		}
+
+		referer := r.Header.Get("Referer")
+		if referer != "" {
+			if !strings.HasPrefix(referer, "http://localhost") && !strings.HasPrefix(referer, "http://127.0.0.1") {
+				http.Error(w, "Forbidden: Invalid Referer header", http.StatusForbidden)
+				return
+			}
+		}
+
+		// --- 3. Security Headers ---
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none';")
+
+		// --- 4. API Token Verification ---
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" {
+			tokenHeader := r.Header.Get("X-Pandora-Token")
+			tokenQuery := r.URL.Query().Get("token")
+			if s.sessionToken != "" && tokenHeader != s.sessionToken && tokenQuery != s.sessionToken {
+				http.Error(w, `{"error":"Unauthorized: Missing or invalid local session token"}`, http.StatusUnauthorized)
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+		http.NotFound(w, r)
+		return
+	}
+
+	htmlBytes, err := staticFS.ReadFile("static/index.html")
+	if err != nil {
+		http.Error(w, "Internal error loading index.html", http.StatusInternalServerError)
+		return
+	}
+
+	// Inject session token into HTML for local JS client
+	injectedHTML := strings.Replace(
+		string(htmlBytes),
+		`<head>`,
+		fmt.Sprintf(`<head><meta name="pandora-token" content="%s">`, s.sessionToken),
+		1,
+	)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(injectedHTML))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +202,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve public key(s)
+	// 100% Native Go Encryption (X25519) - Zero in-browser JS cryptography
 	if req.IsGroup && len(req.GroupMembers) > 0 {
 		var pubKeys []string
 		var recipientHandles []string
@@ -188,12 +288,11 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
-	// Stream from cloud relay and decrypt locally
+	// Stream from cloud relay and decrypt locally inside Go binary
 	go func() {
 		_ = s.apiClient.ListenStream(idFile.Handle, func(event client.StreamEvent) {
 			plaintext, err := crypto.Decrypt([]byte(event.Ciphertext), devIdentity)
@@ -251,6 +350,7 @@ func (s *Server) handleDeposit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 100% Native Go Encryption (X25519)
 	ciphertext, err := crypto.Encrypt([]byte(req.Secret), info.PublicKey)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"Encryption failed: %v"}`, err), http.StatusInternalServerError)

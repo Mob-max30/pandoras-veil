@@ -84,6 +84,11 @@ func TestWebServer_HealthAndStatic(t *testing.T) {
 		t.Fatalf("expected status 200 for index.html, got %d", rec.Code)
 	}
 
+	// Verify session token is injected in HTML
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`name="pandora-token"`)) {
+		t.Fatalf("expected pandora-token meta tag in index.html response")
+	}
+
 	// Test GET /api/health
 	reqHealth := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	recHealth := httptest.NewRecorder()
@@ -94,7 +99,43 @@ func TestWebServer_HealthAndStatic(t *testing.T) {
 	}
 }
 
-func TestWebServer_IdentityAndSend(t *testing.T) {
+func TestWebServer_CSRFAndDNSRebindingDefense(t *testing.T) {
+	mockCl := &mockRelayClient{keys: make(map[string]*client.KeyInfo)}
+	srv := NewServer(mockCl, "http://localhost:8080", "")
+	handler := srv.Routes()
+
+	// 1. DNS Rebinding Attack: Malicious Host Header
+	reqRebind := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	reqRebind.Host = "evil-attacker.com"
+	recRebind := httptest.NewRecorder()
+	handler.ServeHTTP(recRebind, reqRebind)
+
+	if recRebind.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden on foreign host header, got %d", recRebind.Code)
+	}
+
+	// 2. Cross-Origin Localhost CSRF Attack: Foreign Origin Header
+	reqCSRF := httptest.NewRequest(http.MethodGet, "/api/identity", nil)
+	reqCSRF.Header.Set("Origin", "https://malicious-website.com")
+	reqCSRF.Header.Set("X-Pandora-Token", srv.SessionToken())
+	recCSRF := httptest.NewRecorder()
+	handler.ServeHTTP(recCSRF, reqCSRF)
+
+	if recCSRF.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden on foreign origin header, got %d", recCSRF.Code)
+	}
+
+	// 3. Unauthorized API Access without Token
+	reqNoToken := httptest.NewRequest(http.MethodGet, "/api/identity", nil)
+	recNoToken := httptest.NewRecorder()
+	handler.ServeHTTP(recNoToken, reqNoToken)
+
+	if recNoToken.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized without session token, got %d", recNoToken.Code)
+	}
+}
+
+func TestWebServer_IdentityAndSendWithToken(t *testing.T) {
 	tmpDir := t.TempDir()
 	idPath := filepath.Join(tmpDir, "identity.json")
 
@@ -120,8 +161,9 @@ func TestWebServer_IdentityAndSend(t *testing.T) {
 	srv := NewServer(mockCl, "http://localhost:8080", idPath)
 	handler := srv.Routes()
 
-	// 1. Test /api/identity
+	// 1. Test /api/identity with token
 	reqId := httptest.NewRequest(http.MethodGet, "/api/identity", nil)
+	reqId.Header.Set("X-Pandora-Token", srv.SessionToken())
 	recId := httptest.NewRecorder()
 	handler.ServeHTTP(recId, reqId)
 
@@ -137,13 +179,14 @@ func TestWebServer_IdentityAndSend(t *testing.T) {
 		t.Fatalf("expected handle PV-TESTER, got %s", idResp["handle"])
 	}
 
-	// 2. Test /api/send
+	// 2. Test /api/send with token
 	sendPayload := SendRequest{
 		Target: "PV-TARGET",
 		Text:   "Secret web message",
 	}
 	body, _ := json.Marshal(sendPayload)
 	reqSend := httptest.NewRequest(http.MethodPost, "/api/send", bytes.NewReader(body))
+	reqSend.Header.Set("X-Pandora-Token", srv.SessionToken())
 	recSend := httptest.NewRecorder()
 	handler.ServeHTTP(recSend, reqSend)
 
@@ -151,7 +194,7 @@ func TestWebServer_IdentityAndSend(t *testing.T) {
 		t.Fatalf("expected 200 for send, got %d: %s", recSend.Code, recSend.Body.String())
 	}
 
-	// 3. Test /api/deposit
+	// 3. Test /api/deposit with token
 	depPayload := DepositRequest{
 		Recipient: "PV-TARGET",
 		Secret:    "Secret deposit payload",
@@ -159,6 +202,7 @@ func TestWebServer_IdentityAndSend(t *testing.T) {
 	}
 	depBody, _ := json.Marshal(depPayload)
 	reqDep := httptest.NewRequest(http.MethodPost, "/api/deposit", bytes.NewReader(depBody))
+	reqDep.Header.Set("X-Pandora-Token", srv.SessionToken())
 	recDep := httptest.NewRecorder()
 	handler.ServeHTTP(recDep, reqDep)
 
