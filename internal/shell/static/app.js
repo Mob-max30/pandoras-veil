@@ -81,7 +81,87 @@ document.addEventListener('DOMContentLoaded', () => {
     changeHandleBtn.addEventListener('click', promptForHandle);
   }
 
-  // 1. Live SSE Stream Connection to Relay Backend
+  // 1. Dynamic Channel Management (Add / Select / Remove)
+  function addChannelItem(rawName, isGroup, autoSelect = true) {
+    let name = rawName.trim();
+    if (isGroup) {
+      if (!name.startsWith('#')) name = '#' + name;
+    } else {
+      name = name.toUpperCase();
+    }
+
+    const list = isGroup ? groupList : dmList;
+    const emptyHint = list.querySelector('.empty-hint');
+    if (emptyHint) emptyHint.remove();
+
+    const attr = isGroup ? 'data-group' : 'data-handle';
+    let existing = list.querySelector(`[${attr}="${name}"]`);
+    if (existing) {
+      if (autoSelect) existing.click();
+      return;
+    }
+
+    const li = document.createElement('li');
+    li.className = 'channel-item';
+    if (isGroup) {
+      li.dataset.group = name;
+      li.innerHTML = `
+        <span class="channel-label"><span class="hash">#</span>${escapeHTML(name.replace('#', ''))} <span class="dot online"></span></span>
+        <button class="remove-channel-btn" title="Remove room">×</button>
+      `;
+    } else {
+      li.dataset.handle = name;
+      li.innerHTML = `
+        <span class="channel-label"><span class="dot online"></span> ${escapeHTML(name)}</span>
+        <button class="remove-channel-btn" title="Close chat">×</button>
+      `;
+    }
+
+    li.onclick = (e) => {
+      if (e.target.classList.contains('remove-channel-btn')) return;
+      document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+      li.classList.add('active');
+      activeChannel = name;
+      renderCurrentChannel();
+      if (!isGroup) {
+        checkOfflineInbox(name);
+      }
+    };
+
+    const removeBtn = li.querySelector('.remove-channel-btn');
+    if (removeBtn) {
+      removeBtn.onclick = (e) => {
+        e.stopPropagation();
+        li.remove();
+        delete channelHistories[name];
+
+        if (list.querySelectorAll('.channel-item').length === 0) {
+          list.innerHTML = `<li class="empty-hint">(No ${isGroup ? 'groups' : 'active chats'} yet)</li>`;
+        }
+
+        if (activeChannel === name) {
+          const first = document.querySelector('.channel-item');
+          if (first) {
+            first.click();
+          } else {
+            addChannelItem('#Development', true, true);
+          }
+        }
+      };
+    }
+
+    list.appendChild(li);
+
+    if (!channelHistories[name]) {
+      channelHistories[name] = [];
+    }
+
+    if (autoSelect) {
+      li.click();
+    }
+  }
+
+  // 2. Live SSE Stream Connection to Relay Backend
   let streamConnected = false;
   function initLiveStream() {
     if (streamConnected) return;
@@ -95,12 +175,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!data || !data.sender) return;
 
         const senderHandle = data.sender.toUpperCase();
+        addChannelItem(senderHandle, false, false);
+
         if (!channelHistories[senderHandle]) {
           channelHistories[senderHandle] = [];
         }
-
-        // Auto-add sender to DM list if not present
-        ensureChannelExists(senderHandle, false);
 
         const timeStr = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const msgObj = {
@@ -116,8 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         channelHistories[senderHandle].push(msgObj);
 
-        // If currently looking at this sender's chat, re-render
-        if (activeChannel.toUpperCase() === senderHandle || activeChannel === '#Development') {
+        if (activeChannel.toUpperCase() === senderHandle) {
           renderCurrentChannel();
         }
       } catch (err) {
@@ -128,33 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
     eventSource.onerror = err => {
       console.warn('Stream disconnected, retrying...', err);
     };
-  }
-
-  function ensureChannelExists(name, isGroup) {
-    if (isGroup) {
-      let existing = groupList.querySelector(`[data-group="${name}"]`);
-      if (!existing) {
-        existing = document.createElement('li');
-        existing.className = 'channel-item';
-        existing.dataset.group = name;
-        existing.innerHTML = `<span class="hash">#</span>${name.replace('#', '')} <span class="dot online"></span>`;
-        groupList.appendChild(existing);
-        bindChannelEvents();
-      }
-    } else {
-      const emptyHint = dmList.querySelector('.empty-hint');
-      if (emptyHint) emptyHint.remove();
-
-      let existing = dmList.querySelector(`[data-handle="${name}"]`);
-      if (!existing) {
-        existing = document.createElement('li');
-        existing.className = 'channel-item';
-        existing.dataset.handle = name;
-        existing.innerHTML = `<span class="dot online"></span> ${name}`;
-        dmList.appendChild(existing);
-        bindChannelEvents();
-      }
-    }
   }
 
   // TTL Selection
@@ -280,54 +331,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function bindChannelEvents() {
-    document.querySelectorAll('.channel-item').forEach(item => {
-      item.onclick = () => {
-        document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        activeChannel = item.dataset.handle || item.dataset.group;
-        renderCurrentChannel();
-        if (!activeChannel.startsWith('#')) {
-          checkOfflineInbox(activeChannel);
-        }
-      };
-    });
-  }
-
-  bindChannelEvents();
-  renderCurrentChannel();
+  // Initialize Default Group
+  addChannelItem('#Development', true, true);
   fetchIdentity();
 
-  // Add DM
+  // Add DM Button
   addDmBtn.addEventListener('click', () => {
-    const handle = prompt('Enter recipient handle (e.g., PV-UJWAL):');
-    if (!handle) return;
-    const cleanHandle = handle.trim().toUpperCase();
-    if (!cleanHandle) return;
-
-    ensureChannelExists(cleanHandle, false);
-    if (!channelHistories[cleanHandle]) {
-      channelHistories[cleanHandle] = [];
+    const handle = prompt('Enter recipient handle to DM (e.g., PV-UJWAL, BOB, ALICE):');
+    if (!handle || !handle.trim()) return;
+    let cleanHandle = handle.trim().toUpperCase();
+    if (!cleanHandle.startsWith('PV-') && !cleanHandle.startsWith('#')) {
+      cleanHandle = 'PV-' + cleanHandle;
     }
-
-    const item = dmList.querySelector(`[data-handle="${cleanHandle}"]`);
-    if (item) item.click();
+    addChannelItem(cleanHandle, false, true);
   });
 
-  // Add Group
+  // Add Group Button
   addGroupBtn.addEventListener('click', () => {
-    const name = prompt('Enter group chat name (e.g., #Time_Pass):');
-    if (!name) return;
+    const name = prompt('Enter group chat room name (e.g., #Alpha_Team):');
+    if (!name || !name.trim()) return;
     let cleanGroup = name.trim();
     if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
-
-    ensureChannelExists(cleanGroup, true);
-    if (!channelHistories[cleanGroup]) {
-      channelHistories[cleanGroup] = [];
-    }
-
-    const item = groupList.querySelector(`[data-group="${cleanGroup}"]`);
-    if (item) item.click();
+    addChannelItem(cleanGroup, true, true);
   });
 
   function scrollToBottom() {
