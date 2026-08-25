@@ -1,0 +1,29 @@
+# Pandora's Veil — local dev / demo stack.
+# Run: docker compose up --build
+# Relay listens on :8080, Redis is not exposed to the host.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PANDORA_PORT: "8080"
+      PANDORA_REDIS_ADDR: "redis:6379"
+      PANDORA_DEFAULT_TTL_SECONDS: "900"
+      PANDORA_MAX_TTL_SECONDS: "604800"
+      PANDORA_MIN_TTL_SECONDS: "30"
+      PANDORA_MAX_CIPHERTEXT_BYTES: "2097152"
+    depends_on:
+      redis:
+        condition: service_healthy
