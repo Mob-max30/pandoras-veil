@@ -105,20 +105,8 @@
         </div>
       </section>
 
-      <!-- RIGHT COLUMN: CRYPTO & SESSION INSPECTOR -->
+      <!-- RIGHT COLUMN: EXPIRATION & SESSION METADATA -->
       <aside class="right-column">
-        <!-- Cryptographic Session Box -->
-        <div class="cyber-box crypto-box">
-          <div class="box-header">CRYPTOGRAPHIC SESSION</div>
-          <div class="box-body">
-            <div class="field"><span class="label">Recipient FP:</span> <span class="val yellow" id="recip-fp-meta">1E42-2834-F91D</span></div>
-            <div class="field"><span class="label">Device Key:</span> <span class="val green">🔒 Verified Out-of-Band</span></div>
-            <div class="field"><span class="label">Algorithm:</span> <span class="val cyan">X25519 (age v1.3)</span></div>
-            <div class="field"><span class="label">Stream Protocol:</span> <span class="val">Zero-Knowledge SSE</span></div>
-            <div class="field"><span class="label">Relay Ping:</span> <span class="val green">Active (&lt;32ms)</span></div>
-          </div>
-        </div>
-
         <!-- Secret Expiration Policy -->
         <div class="cyber-box deposit-box">
           <div class="box-header">SECRET LIFECYCLE (TTL)</div>
@@ -153,6 +141,7 @@
           <div class="box-body">
             <div class="field"><span class="label">Device:</span> <span class="val cyan" id="meta-host">PV-PRANAV</span></div>
             <div class="field"><span class="label">Channel:</span> <span class="val green" id="recip-meta">#Development</span></div>
+            <div class="field" id="recip-fp-row" style="display:none;"><span class="label">Recipient FP:</span> <span class="val yellow" id="recip-fp-val">7C91-42AE</span></div>
             <div class="field"><span class="label">Engine:</span> <span class="val yellow">filippo.io/age</span></div>
           </div>
         </div>

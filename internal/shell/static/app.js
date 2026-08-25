@@ -91,7 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     headerChannelTitle.textContent = activeChannel;
     cmdChannelTag.textContent = activeChannel;
-    recipMeta.textContent = activeChannel + ' ..';
+    recipMeta.textContent = activeChannel;
+
+    const recipFpRow = document.getElementById('recip-fp-row');
+    const recipFpVal = document.getElementById('recip-fp-val');
+    if (!activeChannel.startsWith('#')) {
+      if (recipFpRow) recipFpRow.style.display = 'flex';
+      if (recipFpVal) recipFpVal.textContent = '1E42-2834';
+    } else {
+      if (recipFpRow) recipFpRow.style.display = 'none';
+    }
     scrollToBottom();
   }
 
