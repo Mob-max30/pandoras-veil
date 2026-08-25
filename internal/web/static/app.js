@@ -13,6 +13,7 @@ function getInitials(handle) {
 }
 
 function formatTTL(seconds) {
+    if (!seconds || seconds <= 0) return 'Main';
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
@@ -30,7 +31,7 @@ const state = {
     isGroup: false,
     groupMembers: [],
     convTTL: {},        // Main Disappearing TTL per conversation (default 300s)
-    currentMsgTTL: 300, // Per-message TTL override (cannot exceed main TTL)
+    customMsgTTL: 0,    // 0 means inherit main TTL; >0 means independent custom TTL
     burnAfterReading: true,
     eventSource: null,
     contacts: [],
@@ -46,10 +47,10 @@ function getAuthToken() {
 // Persistence Utilities (Stores ONLY real user interactions)
 function loadPersistedData() {
     try {
-        const savedContacts = localStorage.getItem('pandora_contacts_v5');
-        const savedConvs = localStorage.getItem('pandora_conversations_v5');
-        const savedTarget = localStorage.getItem('pandora_active_target_v5');
-        const savedTTL = localStorage.getItem('pandora_conv_ttl_v5');
+        const savedContacts = localStorage.getItem('pandora_contacts_v6');
+        const savedConvs = localStorage.getItem('pandora_conversations_v6');
+        const savedTarget = localStorage.getItem('pandora_active_target_v6');
+        const savedTTL = localStorage.getItem('pandora_conv_ttl_v6');
 
         state.contacts = savedContacts ? JSON.parse(savedContacts) : [];
         state.conversations = savedConvs ? JSON.parse(savedConvs) : {};
@@ -72,10 +73,10 @@ function loadPersistedData() {
 
 function savePersistedData() {
     try {
-        localStorage.setItem('pandora_contacts_v5', JSON.stringify(state.contacts));
-        localStorage.setItem('pandora_conversations_v5', JSON.stringify(state.conversations));
-        localStorage.setItem('pandora_active_target_v5', state.activeTarget);
-        localStorage.setItem('pandora_conv_ttl_v5', JSON.stringify(state.convTTL));
+        localStorage.setItem('pandora_contacts_v6', JSON.stringify(state.contacts));
+        localStorage.setItem('pandora_conversations_v6', JSON.stringify(state.conversations));
+        localStorage.setItem('pandora_active_target_v6', state.activeTarget);
+        localStorage.setItem('pandora_conv_ttl_v6', JSON.stringify(state.convTTL));
     } catch (e) {
         console.warn('Failed to save to localStorage:', e);
     }
@@ -90,6 +91,9 @@ const activeContactTitleEl = document.getElementById('active-contact-title');
 const activeStatusLineEl = document.getElementById('active-status-line');
 const activeStatusTextEl = document.getElementById('active-status-text');
 const headerConnStatusEl = document.getElementById('header-conn-status');
+const topMainTtlLabelEl = document.getElementById('top-main-ttl-label');
+const currentMsgTtlBadgeEl = document.getElementById('current-msg-ttl-badge');
+const msgTtlBtnEl = document.getElementById('msg-ttl-btn');
 const chatMessagesContainerEl = document.getElementById('chat-messages-container');
 const chatMessagesScrollEl = document.getElementById('chat-messages-scroll');
 const chatInputEl = document.getElementById('chat-input');
@@ -275,10 +279,21 @@ function renderCorrespondenceSidebar() {
         state.groupMembers = activeContact.members || [];
         state.activeTargetFP = activeContact.fp || '';
         state.activeTargetPK = activeContact.publicKey || '';
+
+        // Sync main TTL label
+        const mainTTL = getMainTTL(state.activeTarget);
+        if (topMainTtlLabelEl) {
+            topMainTtlLabelEl.textContent = `${formatTTL(mainTTL)} Lifespan`;
+        }
+        updateMsgTTLBadge();
     } else {
         activeHeaderAvatarEl.textContent = '—';
         activeContactTitleEl.textContent = 'No Active Chat';
         activeStatusTextEl.textContent = state.serverConnected ? 'Connected to Relay' : 'Connecting...';
+        if (topMainTtlLabelEl) {
+            topMainTtlLabelEl.textContent = '5m Lifespan';
+        }
+        updateMsgTTLBadge();
     }
 }
 
@@ -287,10 +302,32 @@ function getMainTTL(handle) {
     return state.convTTL[handle] || 300;
 }
 
+function updateMsgTTLBadge() {
+    if (!currentMsgTtlBadgeEl) return;
+    if (state.customMsgTTL > 0) {
+        currentMsgTtlBadgeEl.textContent = formatTTL(state.customMsgTTL);
+        if (msgTtlBtnEl) msgTtlBtnEl.classList.add('active-custom');
+    } else {
+        const mainTTL = getMainTTL(state.activeTarget);
+        currentMsgTtlBadgeEl.textContent = `Main (${formatTTL(mainTTL)})`;
+        if (msgTtlBtnEl) msgTtlBtnEl.classList.remove('active-custom');
+    }
+}
+
+function cycleMessageTTL() {
+    const options = [0, 30, 60, 300, 3600, 86400]; // 0 means default to main time
+    let idx = options.indexOf(state.customMsgTTL);
+    if (idx === -1 || idx >= options.length - 1) {
+        state.customMsgTTL = options[0];
+    } else {
+        state.customMsgTTL = options[idx + 1];
+    }
+    updateMsgTTLBadge();
+}
+
 function selectContact(handle) {
     state.activeTarget = handle;
-    const mainTTL = getMainTTL(handle);
-    state.currentMsgTTL = mainTTL;
+    state.customMsgTTL = 0; // reset to inherit main time
     savePersistedData();
     renderCorrespondenceSidebar();
     renderActiveConversation();
@@ -430,7 +467,8 @@ function appendBubble(msg) {
 
         const metaEl = document.createElement('div');
         metaEl.className = 'pv-bubble-meta';
-        metaEl.textContent = msg.isOutgoing ? 'Encrypted & Dispatched' : 'Decrypted locally';
+        const ttlLabel = msg.ttl ? ` • ${formatTTL(msg.ttl)}` : '';
+        metaEl.textContent = (msg.isOutgoing ? 'Encrypted & Dispatched' : 'Decrypted locally') + ttlLabel;
         groupEl.appendChild(metaEl);
     }
 
@@ -456,7 +494,8 @@ async function handleSendMessage(e) {
     chatInputEl.value = '';
 
     const timestamp = formatTime(new Date());
-    const effectiveTTL = Math.min(state.currentMsgTTL, getMainTTL(state.activeTarget));
+    // Use custom independent message TTL if set (> 0), otherwise use main conversation TTL
+    const effectiveTTL = state.customMsgTTL > 0 ? state.customMsgTTL : getMainTTL(state.activeTarget);
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
     const msg = {
@@ -848,9 +887,9 @@ function openDisappearingModal() {
     }
     const currentTTL = getMainTTL(state.activeTarget);
 
-    openModal('Disappearing Messages', `
+    openModal('Disappearing Messages (Main Lifespan)', `
         <div style="display:flex; flex-direction:column; gap:14px; font-size:0.88rem;">
-            <p style="color:#94a3b8;">Set conversation lifespan timer for <strong>${state.activeTarget}</strong>:</p>
+            <p style="color:#94a3b8;">Set main conversation lifespan timer for <strong>${state.activeTarget}</strong>. Messages without custom timers will disappear after this duration:</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="30" ${currentTTL === 30 ? 'checked' : ''}> 30 Seconds</label>
                 <label style="cursor:pointer; display:flex; align-items:center; gap:8px;"><input type="radio" name="ttl-opt" value="60" ${currentTTL === 60 ? 'checked' : ''}> 1 Minute</label>
@@ -870,7 +909,6 @@ function applyConversationTTLFromModal() {
     if (selected && state.activeTarget) {
         const val = parseInt(selected.value, 10) || 300;
         state.convTTL[state.activeTarget] = val;
-        state.currentMsgTTL = Math.min(state.currentMsgTTL, val);
         savePersistedData();
         renderCorrespondenceSidebar();
         closeModal();
@@ -900,7 +938,7 @@ async function submitSecretDepositFromModal() {
     const textarea = document.getElementById('secret-deposit-textarea');
     if (textarea && textarea.value.trim()) {
         const secret = textarea.value.trim();
-        const currentTTL = getMainTTL(state.activeTarget);
+        const currentTTL = state.customMsgTTL > 0 ? state.customMsgTTL : getMainTTL(state.activeTarget);
         closeModal();
         try {
             const token = getAuthToken();
