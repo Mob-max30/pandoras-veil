@@ -17,6 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeTTL = 300;
   let isBurnActive = true;
 
+  // In-Memory Per-Channel Message Store
+  const channelHistories = {
+    '#Development': [
+      { sender: 'PV-UJWAL', text: 'Deployment complete for v1.2.5.', time: '14:32', isYou: false },
+      { sender: 'YOU', text: 'Confirmed. Monitoring throughput.', time: '14:38', isYou: true },
+      { sender: 'PV-UJWAL', text: 'Need final verification on the protocol patch.', time: '14:40', isYou: false }
+    ]
+  };
+
   // TTL Selection
   ttlBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -33,20 +42,64 @@ document.addEventListener('DOMContentLoaded', () => {
     burnText.className = isBurnActive ? 'green' : 'dim';
   });
 
+  function renderCurrentChannel() {
+    msgContainer.innerHTML = '';
+    const history = channelHistories[activeChannel] || [];
+
+    if (history.length === 0) {
+      const isGroup = activeChannel.startsWith('#');
+      const systemNotice = document.createElement('div');
+      systemNotice.className = 'chat-bubble-row left';
+      systemNotice.innerHTML = `
+        <div class="bubble-meta">[SYSTEM]</div>
+        <div class="chat-bubble left-bubble">
+          🔒 <strong>${isGroup ? 'Encrypted Group Room' : 'Encrypted Direct Session'}: ${escapeHTML(activeChannel)}</strong><br>
+          Zero-Knowledge Relay active. Type a message or click <strong>/f attach</strong> below.
+        </div>
+      `;
+      msgContainer.appendChild(systemNotice);
+    } else {
+      history.forEach(msg => {
+        const row = document.createElement('div');
+        row.className = `chat-bubble-row ${msg.isYou ? 'right' : 'left'}`;
+        if (msg.isFile) {
+          row.innerHTML = `
+            <div class="bubble-meta">[${msg.time}] ${msg.isYou ? '<span class="you-badge">[YOU]</span>' : `<span class="sender-name">${escapeHTML(msg.sender)}</span>`}</div>
+            <div class="chat-bubble ${msg.isYou ? 'right-bubble' : 'left-bubble'}">
+              📁 [FILE] ${escapeHTML(msg.filename)} (${Math.round(msg.fileSize / 1024)} KB)
+            </div>
+          `;
+        } else {
+          row.innerHTML = `
+            <div class="bubble-meta">[${msg.time}] ${msg.isYou ? '<span class="you-badge">[YOU]</span>' : `<span class="sender-name">${escapeHTML(msg.sender)}</span>`}</div>
+            <div class="chat-bubble ${msg.isYou ? 'right-bubble' : 'left-bubble'}">
+              ${escapeHTML(msg.text)}
+            </div>
+          `;
+        }
+        msgContainer.appendChild(row);
+      });
+    }
+
+    headerChannelTitle.textContent = activeChannel;
+    cmdChannelTag.textContent = activeChannel;
+    recipMeta.textContent = activeChannel + ' ..';
+    scrollToBottom();
+  }
+
   function bindChannelEvents() {
     document.querySelectorAll('.channel-item').forEach(item => {
       item.onclick = () => {
         document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         activeChannel = item.dataset.handle || item.dataset.group;
-        headerChannelTitle.textContent = activeChannel;
-        cmdChannelTag.textContent = activeChannel;
-        recipMeta.textContent = activeChannel + ' ..';
+        renderCurrentChannel();
       };
     });
   }
 
   bindChannelEvents();
+  renderCurrentChannel();
 
   // Add DM
   addDmBtn.addEventListener('click', () => {
@@ -67,12 +120,15 @@ document.addEventListener('DOMContentLoaded', () => {
       dmList.appendChild(existing);
       bindChannelEvents();
     }
+    if (!channelHistories[cleanHandle]) {
+      channelHistories[cleanHandle] = [];
+    }
     existing.click();
   });
 
   // Add Group
   addGroupBtn.addEventListener('click', () => {
-    const name = prompt('Enter group chat name (e.g., #Security_Team):');
+    const name = prompt('Enter group chat name (e.g., #Time_Pass):');
     if (!name) return;
     let cleanGroup = name.trim();
     if (!cleanGroup.startsWith('#')) cleanGroup = '#' + cleanGroup;
@@ -86,6 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
       groupList.appendChild(existing);
       bindChannelEvents();
     }
+    if (!channelHistories[cleanGroup]) {
+      channelHistories[cleanGroup] = [];
+    }
     existing.click();
   });
 
@@ -94,8 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
       msgContainer.scrollTop = msgContainer.scrollHeight + 10000;
     }, 50);
   }
-
-  scrollToBottom();
 
   // File Picker Trigger (/f)
   fileBtn.addEventListener('click', () => {
@@ -110,16 +167,20 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!file) return;
 
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const row = document.createElement('div');
-      row.className = 'chat-bubble-row right';
-      row.innerHTML = `
-        <div class="bubble-meta">[${timeStr}] <span class="you-badge">[YOU]</span></div>
-        <div class="chat-bubble right-bubble">
-          📁 [FILE SENT] ${file.name} (${Math.round(file.size / 1024)} KB)
-        </div>
-      `;
-      msgContainer.appendChild(row);
-      scrollToBottom();
+      const msgObj = {
+        sender: 'YOU',
+        isFile: true,
+        filename: file.name,
+        fileSize: file.size,
+        time: timeStr,
+        isYou: true
+      };
+
+      if (!channelHistories[activeChannel]) {
+        channelHistories[activeChannel] = [];
+      }
+      channelHistories[activeChannel].push(msgObj);
+      renderCurrentChannel();
     };
     input.click();
   }
@@ -137,16 +198,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const row = document.createElement('div');
-      row.className = 'chat-bubble-row right';
-      row.innerHTML = `
-        <div class="bubble-meta">[${timeStr}] <span class="you-badge">[YOU]</span></div>
-        <div class="chat-bubble right-bubble">
-          ${escapeHTML(text)}
-        </div>
-      `;
-      msgContainer.appendChild(row);
-      scrollToBottom();
+      const msgObj = {
+        sender: 'YOU',
+        text: text,
+        time: timeStr,
+        isYou: true
+      };
+
+      if (!channelHistories[activeChannel]) {
+        channelHistories[activeChannel] = [];
+      }
+      channelHistories[activeChannel].push(msgObj);
+      renderCurrentChannel();
 
       cmdInput.value = '';
     }
