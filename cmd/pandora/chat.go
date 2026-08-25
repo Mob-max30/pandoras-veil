@@ -63,6 +63,18 @@ func (s *TUIState) SetInput(text string) {
 	s.render()
 }
 
+// ANSI Color Theme matching the reference screenshot
+const (
+	ThemeCyan    = "\033[38;2;0;210;255m"
+	ThemeGreen   = "\033[38;2;50;255;120m"
+	ThemeMagenta = "\033[38;2;255;85;210m"
+	ThemeDim     = "\033[38;2;110;120;140m"
+	ThemeWhite   = "\033[38;2;235;240;250m"
+	ThemeYellow  = "\033[38;2;255;215;0m"
+	ThemeDarkBg  = "\033[48;2;16;18;27m"
+	ThemeSelBg   = "\033[48;2;50;255;120m\033[38;2;16;18;27m\033[1m"
+)
+
 func visualWidth(str string) int {
 	return utf8.RuneCountInString(stripANSI(str))
 }
@@ -75,170 +87,273 @@ func padRight(s string, w int) string {
 	return s + strings.Repeat(" ", w-vis)
 }
 
+func padCenter(s string, w int) string {
+	vis := visualWidth(s)
+	if vis >= w {
+		return s
+	}
+	left := (w - vis) / 2
+	right := w - vis - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+}
+
+func padTrunc(s string, w int) string {
+	vis := visualWidth(s)
+	if vis > w {
+		if w > 3 {
+			return s[:w-3] + ".."
+		}
+		return s[:w]
+	}
+	return s + strings.Repeat(" ", w-vis)
+}
+
 func (s *TUIState) render() {
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width < 60 || height < 15 {
-		width = 90
-		height = 25
+	if err != nil || width < 80 || height < 20 {
+		width = 110
+		height = 30
 	}
 
-	leftW := width * 24 / 100
+	// Dynamic column widths: Left (24%), Center (52%), Right (24%)
+	leftW := width * 23 / 100
 	if leftW < 22 {
 		leftW = 22
 	}
-	if leftW > 32 {
-		leftW = 32
+	rightW := width * 25 / 100
+	if rightW < 24 {
+		rightW = 24
 	}
-	rightW := width - leftW - 3
-	if rightW < 30 {
-		rightW = 30
-	}
-
-	totalInnerH := height - 5
-	if totalInnerH < 6 {
-		totalInnerH = 6
+	centerW := width - leftW - rightW - 4
+	if centerW < 36 {
+		centerW = 36
 	}
 
-	leftH1 := totalInnerH / 2
-	leftH2 := totalInnerH - leftH1 - 1 // 1 row for middle divider
+	// Height breakdown
+	mainH := height - 7 // Top title (1) + gaps + bottom input box (4) + footer (1)
+	if mainH < 12 {
+		mainH = 12
+	}
 
 	var b strings.Builder
-	// Move cursor to top-left, hide cursor during frame draw
+	// Move cursor to top-left, hide cursor during draw
 	b.WriteString("\033[H\033[?25l")
 
-	// 1. Top Header Row
-	topHeader := fmt.Sprintf("┌%s┬%s┐\n", strings.Repeat("─", leftW), strings.Repeat("─", rightW))
-	b.WriteString(ColorDim + topHeader + ColorReset)
-
-	titleLeft := padRight(fmt.Sprintf(" %s🔒 PANDORA RELAY%s", ColorBold+ColorCyan, ColorReset), leftW)
-	headerTarget := fmt.Sprintf(" %s💬 SESSION: %s%s  |  FP: [%s%s%s]  |  %s🔒 E2E ENCRYPTED%s",
-		ColorBold+ColorGreen, s.targetLabel, ColorReset,
-		ColorYellow, s.targetFP, ColorReset,
-		ColorGreen, ColorReset,
+	// -------------------------------------------------------------
+	// 1. TOP TITLE BAR
+	// -------------------------------------------------------------
+	titleText := fmt.Sprintf("🔴 🟡 🟢   %sPANDORA'S VEIL%s  |  %s[ v1.2.5 ]%s Secure Channel - %sMain%s",
+		ThemeCyan+ColorBold, ColorReset,
+		ThemeGreen, ColorReset,
+		ThemeWhite+ColorBold, ColorReset,
 	)
-	if s.isGroup {
-		headerTarget = fmt.Sprintf(" %s🔒 GROUP (%d Members)%s  |  %s🔒 E2E MULTI-KEY ENCRYPTED%s",
-			ColorBold+ColorGreen, len(s.members)+1, ColorReset,
-			ColorGreen, ColorReset,
-		)
-	}
-	titleRight := padRight(headerTarget, rightW)
+	b.WriteString(padCenter(titleText, width) + "\n\n")
 
-	b.WriteString(fmt.Sprintf("%s│%s%s%s│%s%s%s│%s\n",
-		ColorDim, ColorReset, titleLeft, ColorDim, ColorReset, titleRight, ColorDim, ColorReset,
-	))
+	// -------------------------------------------------------------
+	// 2. PREPARE LEFT COLUMN (DEVICE IDENTITY + CHANNELS)
+	// -------------------------------------------------------------
+	leftLines := make([]string, mainH)
+	box1H := 6
+	box2H := mainH - box1H - 1
 
-	// 2. Header Divider
-	b.WriteString(fmt.Sprintf("%s├%s┼%s┤%s\n",
-		ColorDim, strings.Repeat("─", leftW), strings.Repeat("─", rightW), ColorReset,
-	))
+	// Box 1: Device Identity
+	leftLines[0] = fmt.Sprintf("%s╭─ DEVICE IDENTITY %s╮%s", ThemeCyan, strings.Repeat("─", leftW-20), ColorReset)
+	leftLines[1] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight("HOST: "+ThemeWhite+ColorBold+padTrunc(s.userHandle, leftW-9)+ColorReset, leftW-3), ThemeCyan, ColorReset)
+	leftLines[2] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight("FINGERPRINT:", leftW-3), ThemeCyan, ColorReset)
+	leftLines[3] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeYellow+padTrunc(s.userFP, leftW-3)+ColorReset, leftW-3), ThemeCyan, ColorReset)
+	statusText := fmt.Sprintf("STATUS: %sONLINE%s %s(AES-256)%s", ThemeGreen+ColorBold, ColorReset, ThemeDim, ColorReset)
+	leftLines[4] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(statusText, leftW-3), ThemeCyan, ColorReset)
+	leftLines[5] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", leftW-2), ColorReset)
 
-	// 3. Prepare Left Sidebar Lines
-	leftBox1 := make([]string, leftH1)
-	leftBox1[0] = ColorBold + ColorWhite + " [YOUR IDENTITY]" + ColorReset
-	leftBox1[1] = ColorCyan + " Handle: " + ColorReset + s.userHandle
-	leftBox1[2] = ColorYellow + " FP: " + ColorReset + s.userFP
-	keySnip := s.userKey
-	if len(keySnip) > 10 {
-		keySnip = keySnip[:5] + ".." + keySnip[len(keySnip)-4:]
-	}
-	if leftH1 > 3 {
-		leftBox1[3] = ColorDim + " Key: " + keySnip + ColorReset
-	}
-	if leftH1 > 4 {
-		leftBox1[4] = ColorGreen + " Status: Online" + ColorReset
-	}
+	// Box 2: Channels / Contacts
+	if box2H > 4 {
+		leftLines[6] = fmt.Sprintf("%s╭─ CHANNELS %s╮%s", ThemeCyan, strings.Repeat("─", leftW-13), ColorReset)
+		leftLines[7] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Active Messages"+ColorReset, leftW-3), ThemeCyan, ColorReset)
+		activeMsgLine := fmt.Sprintf("  %s●%s %s", ThemeGreen, ColorReset, padTrunc(s.targetLabel, leftW-7))
+		leftLines[8] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(activeMsgLine, leftW-3), ThemeCyan, ColorReset)
+		leftLines[9] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(ThemeDim+"Group Chats"+ColorReset, leftW-3), ThemeCyan, ColorReset)
 
-	leftBox2 := make([]string, leftH2)
-	leftBox2[0] = ColorBold + ColorWhite + " [SETTINGS & POLICY]" + ColorReset
-	leftBox2[1] = ColorCyan + " Disappear: " + ColorReset + s.ttlSetting
-	leftBox2[2] = ColorCyan + " Burn Read: " + ColorReset + s.burnSetting
-	if s.isGroup && leftH2 > 3 {
-		leftBox2[3] = ColorDim + fmt.Sprintf(" Group: %d Peers", len(s.members)) + ColorReset
-	} else if leftH2 > 3 {
-		leftBox2[3] = ColorDim + " Cipher: age/X25519" + ColorReset
-	}
-	if leftH2 > 4 {
-		leftBox2[4] = ColorDim + " Exit: /quit" + ColorReset
-	}
-
-	// 4. Prepare Right Chat Lines
-	visibleMsgs := s.messages
-	if len(visibleMsgs) > totalInnerH {
-		visibleMsgs = visibleMsgs[len(visibleMsgs)-totalInnerH:]
-	}
-
-	chatLines := make([]string, totalInnerH)
-	startIdx := totalInnerH - len(visibleMsgs)
-	for i, msg := range visibleMsgs {
-		idx := startIdx + i
-		if idx >= 0 && idx < totalInnerH {
-			if msg.IsOutgoing {
-				// Outgoing right-aligned bubble
-				formatted := fmt.Sprintf("%s%s%s %s[YOU]%s %s[%s]%s",
-					ColorBold+ColorGreen, msg.Text, ColorReset,
-					ColorBold+ColorMagenta, ColorReset,
-					ColorDim, msg.Timestamp, ColorReset,
-				)
-				visLen := visualWidth(formatted)
-				pad := rightW - visLen - 2
-				if pad < 1 {
-					pad = 1
-				}
-				chatLines[idx] = strings.Repeat(" ", pad) + formatted
-			} else {
-				// Incoming left-aligned bubble
-				formatted := fmt.Sprintf(" %s[%s]%s %s[%s] ❯%s %s",
-					ColorDim, msg.Timestamp, ColorReset,
-					ColorBold+ColorMagenta, msg.Sender, ColorReset,
-					msg.Text,
-				)
-				chatLines[idx] = formatted
+		activeChanName := "#Development"
+		if s.isGroup {
+			activeChanName = "#" + s.targetLabel
+		}
+		chanHighlight := fmt.Sprintf(" %s ● ", padTrunc(activeChanName, leftW-8))
+		leftLines[10] = fmt.Sprintf("%s│%s%s%s│%s", ThemeCyan, ColorReset, ThemeSelBg+padRight(chanHighlight, leftW-2)+ColorReset, ThemeCyan, ColorReset)
+		
+		groupList := []string{"#Alpha_Team", "#Ops_Center", "#General"}
+		for i, gName := range groupList {
+			rowIdx := 11 + i
+			if rowIdx < mainH-1 {
+				gLine := fmt.Sprintf("  %s%s%s", ThemeDim, padTrunc(gName, leftW-5), ColorReset)
+				leftLines[rowIdx] = fmt.Sprintf("%s│%s %s%s│%s", ThemeCyan, ColorReset, padRight(gLine, leftW-3), ThemeCyan, ColorReset)
 			}
 		}
+		leftLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeCyan, strings.Repeat("─", leftW-2), ColorReset)
 	}
 
-	// 5. Render Main Content (Row by Row)
-	for row := 0; row < totalInnerH; row++ {
-		var leftContent string
-		if row < leftH1 {
-			leftContent = leftBox1[row]
-		} else if row == leftH1 {
-			// Middle horizontal divider on left box
-			leftContent = ColorDim + strings.Repeat("─", leftW) + ColorReset
+	// -------------------------------------------------------------
+	// 3. PREPARE RIGHT COLUMN (POLICIES & METADATA)
+	// -------------------------------------------------------------
+	rightLines := make([]string, mainH)
+	
+	// Box 1: Policy Inspector
+	rightLines[0] = fmt.Sprintf("%s╭─ SECRET DEPOSIT & POLICY %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-28), ColorReset)
+	rightLines[1] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("POLICY: "+ThemeGreen+"BURST_MODE_ALPHA"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
+	rightLines[2] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+
+	// Box 2: Deposit Object & TTL
+	rightLines[3] = fmt.Sprintf("%s╭─ DEPOSIT OBJECT %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-19), ColorReset)
+	rightLines[4] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  "+ThemeWhite+ColorBold+"Auth_Key_74"+ColorReset, rightW-3), ThemeMagenta, ColorReset)
+	rightLines[5] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  TTL EXPIRATION", rightW-3), ThemeMagenta, ColorReset)
+	ttlLine := fmt.Sprintf("  [ 60s | %s*%s*%s | 1h | 24h ]", ThemeGreen+ColorBold, s.ttlSetting, ColorReset)
+	rightLines[6] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(ttlLine, rightW-3), ThemeMagenta, ColorReset)
+	rightLines[7] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+
+	// Box 3: Burn After Reading
+	rightLines[8] = fmt.Sprintf("%s╭─ BURN-AFTER-READING %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-23), ColorReset)
+	burnToggle := fmt.Sprintf("  Redis GETDEL   %s[===●]%s", ThemeGreen, ColorReset)
+	rightLines[9] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnToggle, rightW-3), ThemeMagenta, ColorReset)
+	burnState := fmt.Sprintf("  [ %s*%s*%s | OFF ]", ThemeGreen+ColorBold, s.burnSetting, ColorReset)
+	rightLines[10] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight(burnState, rightW-3), ThemeMagenta, ColorReset)
+	rightLines[11] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+
+	// Box 4: Key Metadata
+	if mainH > 16 {
+		rightLines[12] = fmt.Sprintf("%s╭─ KEY METADATA %s╮%s", ThemeMagenta, strings.Repeat("─", rightW-17), ColorReset)
+		rightLines[13] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Created:   "+padTrunc(s.userHandle, rightW-14), rightW-3), ThemeMagenta, ColorReset)
+		rightLines[14] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Expires:   24 Hours", rightW-3), ThemeMagenta, ColorReset)
+		rightLines[15] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Recipient: "+padTrunc(s.targetLabel, rightW-14), rightW-3), ThemeMagenta, ColorReset)
+		rightLines[16] = fmt.Sprintf("%s│%s %s%s│%s", ThemeMagenta, ColorReset, padRight("  Cipher:    AES-256", rightW-3), ThemeMagenta, ColorReset)
+		rightLines[17] = fmt.Sprintf("%s╰%s╯%s", ThemeMagenta, strings.Repeat("─", rightW-2), ColorReset)
+	}
+
+	// -------------------------------------------------------------
+	// 4. PREPARE CENTER MAIN PANE (SPEECH BUBBLE MESSAGES)
+	// -------------------------------------------------------------
+	centerLines := make([]string, mainH)
+	centerLines[0] = fmt.Sprintf("%s╭─ CENTER MAIN PANE (Width: 55%%) %s╮%s", ThemeGreen, strings.Repeat("─", centerW-32), ColorReset)
+
+	// Render speech bubble messages inside the center pane
+	chatRowsAvailable := mainH - 2
+	var renderedBubbleLines []string
+
+	for _, msg := range s.messages {
+		if msg.IsOutgoing {
+			// Outgoing Bubble (Right Aligned, Green Border)
+			bubbleW := len(msg.Text) + 6
+			if bubbleW < 24 {
+				bubbleW = 24
+			}
+			if bubbleW > centerW-4 {
+				bubbleW = centerW - 4
+			}
+			headerText := fmt.Sprintf("[%s] [YOU]", msg.Timestamp)
+			topBorder := fmt.Sprintf("╭%s%s%s%s╮",
+				strings.Repeat("─", bubbleW-len(headerText)-3),
+				ThemeDim, headerText, ThemeGreen,
+			)
+			bodyText := padRight(" "+msg.Text, bubbleW-2)
+			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", bubbleW-2))
+
+			padLeftCount := centerW - bubbleW - 3
+			if padLeftCount < 0 {
+				padLeftCount = 0
+			}
+			indent := strings.Repeat(" ", padLeftCount)
+
+			renderedBubbleLines = append(renderedBubbleLines, indent+ThemeGreen+topBorder+ColorReset)
+			renderedBubbleLines = append(renderedBubbleLines, indent+ThemeGreen+"│"+ColorReset+ThemeWhite+bodyText+ThemeGreen+"│"+ColorReset)
+			renderedBubbleLines = append(renderedBubbleLines, indent+ThemeGreen+botBorder+ColorReset)
 		} else {
-			box2Idx := row - leftH1 - 1
-			if box2Idx < len(leftBox2) {
-				leftContent = leftBox2[box2Idx]
+			// Incoming Bubble (Left Aligned, Cyan/Dim Border)
+			bubbleW := len(msg.Text) + len(msg.Sender) + 12
+			if bubbleW < 26 {
+				bubbleW = 26
 			}
+			if bubbleW > centerW-4 {
+				bubbleW = centerW - 4
+			}
+			headerText := fmt.Sprintf("[%s] %s", msg.Timestamp, msg.Sender)
+			topBorder := fmt.Sprintf("╭%s%s%s %s%s╮",
+				ThemeDim, headerText, ThemeCyan,
+				strings.Repeat("─", bubbleW-len(headerText)-4),
+				ThemeCyan,
+			)
+			bodyText := padRight(" "+msg.Text, bubbleW-2)
+			botBorder := fmt.Sprintf("╰%s╯", strings.Repeat("─", bubbleW-2))
+
+			renderedBubbleLines = append(renderedBubbleLines, " "+ThemeCyan+topBorder+ColorReset)
+			renderedBubbleLines = append(renderedBubbleLines, " "+ThemeCyan+"│"+ColorReset+ThemeWhite+bodyText+ThemeCyan+"│"+ColorReset)
+			renderedBubbleLines = append(renderedBubbleLines, " "+ThemeCyan+botBorder+ColorReset)
 		}
-
-		leftPadded := padRight(leftContent, leftW)
-		rightPadded := padRight(chatLines[row], rightW)
-
-		b.WriteString(fmt.Sprintf("%s│%s%s%s│%s%s%s│%s\n",
-			ColorDim, ColorReset, leftPadded, ColorDim, ColorReset, rightPadded, ColorDim, ColorReset,
-		))
 	}
 
-	// 6. Bottom Separator
-	b.WriteString(fmt.Sprintf("%s├%s┴%s┤%s\n",
-		ColorDim, strings.Repeat("─", leftW), strings.Repeat("─", rightW), ColorReset,
-	))
-
-	// 7. Input Line Row
-	inputPrompt := fmt.Sprintf(" [%s] ❯ ", s.userHandle)
-	inputDisplay := s.inputBuffer
-	maxInputW := width - len(inputPrompt) - 4
-	if maxInputW > 0 && len(inputDisplay) > maxInputW {
-		inputDisplay = inputDisplay[len(inputDisplay)-maxInputW:]
+	// Slice visible bubble lines to fit center pane height
+	visibleBubbles := renderedBubbleLines
+	if len(visibleBubbles) > chatRowsAvailable {
+		visibleBubbles = visibleBubbles[len(visibleBubbles)-chatRowsAvailable:]
 	}
 
-	inputLine := padRight(fmt.Sprintf("%s%s%s%s", ColorBold+ColorCyan, inputPrompt, ColorReset, inputDisplay), width-2)
-	b.WriteString(fmt.Sprintf("%s│%s%s%s│%s\n", ColorDim, ColorReset, inputLine, ColorDim, ColorReset))
+	startRow := chatRowsAvailable - len(visibleBubbles)
+	for i, line := range visibleBubbles {
+		row := 1 + startRow + i
+		if row < mainH-1 {
+			centerLines[row] = fmt.Sprintf("%s│%s%s%s│%s", ThemeGreen, ColorReset, padRight(line, centerW-2), ThemeGreen, ColorReset)
+		}
+	}
 
-	// 8. Bottom Frame Border
-	b.WriteString(fmt.Sprintf("%s└%s┘%s\033[?25h", ColorDim, strings.Repeat("─", width-2), ColorReset))
+	// Fill empty center lines
+	for r := 1; r < mainH-1; r++ {
+		if centerLines[r] == "" {
+			centerLines[r] = fmt.Sprintf("%s│%s%s%s│%s", ThemeGreen, ColorReset, strings.Repeat(" ", centerW-2), ThemeGreen, ColorReset)
+		}
+	}
+	centerLines[mainH-1] = fmt.Sprintf("%s╰%s╯%s", ThemeGreen, strings.Repeat("─", centerW-2), ColorReset)
+
+	// -------------------------------------------------------------
+	// 5. ASSEMBLE 3 COLUMNS ROW BY ROW
+	// -------------------------------------------------------------
+	for row := 0; row < mainH; row++ {
+		l := padRight(leftLines[row], leftW)
+		c := padRight(centerLines[row], centerW)
+		r := padRight(rightLines[row], rightW)
+		b.WriteString(fmt.Sprintf(" %s  %s  %s\n", l, c, r))
+	}
+
+	// -------------------------------------------------------------
+	// 6. BOTTOM INPUT BOX & COMMAND PROMPT
+	// -------------------------------------------------------------
+	chanLabel := "#Development"
+	if s.isGroup {
+		chanLabel = "#" + s.targetLabel
+	}
+	inputBoxTop := fmt.Sprintf("%s╭─ [ %s%s%s ] %s╮%s",
+		ThemeCyan, ThemeWhite+ColorBold, chanLabel, ThemeCyan,
+		strings.Repeat("─", width-len(chanLabel)-13), ColorReset,
+	)
+	b.WriteString("\n " + inputBoxTop + "\n")
+
+	promptStr := fmt.Sprintf("pveil > ")
+	inputText := s.inputBuffer
+	maxInput := width - 14
+	if len(inputText) > maxInput {
+		inputText = inputText[len(inputText)-maxInput:]
+	}
+	inputLineContent := padRight(fmt.Sprintf(" %s%s%s%s", ThemeGreen+ColorBold, promptStr, ColorReset+ThemeWhite, inputText), width-4)
+	b.WriteString(fmt.Sprintf(" %s│%s%s%s│%s\n", ThemeCyan, ColorReset, inputLineContent, ThemeCyan, ColorReset))
+	b.WriteString(" " + fmt.Sprintf("%s╰%s╯%s\n", ThemeCyan, strings.Repeat("─", width-4), ColorReset))
+
+	// -------------------------------------------------------------
+	// 7. FOOTER SHORTCUT BAR
+	// -------------------------------------------------------------
+	shortcutBar := fmt.Sprintf(" %s[Tab]%s Switch Pane    %s[Ctrl+N]%s New Group    %s[Ctrl+S]%s Search    %s[Ctrl+K]%s SecDeposit    %s[Ctrl+Q]%s Exit",
+		ThemeCyan, ThemeDim,
+		ThemeCyan, ThemeDim,
+		ThemeCyan, ThemeDim,
+		ThemeCyan, ThemeDim,
+		ThemeCyan, ThemeDim,
+	)
+	b.WriteString(shortcutBar + "\033[?25h")
 
 	fmt.Fprint(s.out, b.String())
 }
@@ -412,7 +527,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 	}
 
-	// 5. Enter Alternate Screen Buffer (Dedicated Full Screen Layout)
+	// 5. Enter Alternate Screen Buffer (Cyberpunk Dashboard Theme)
 	fmt.Fprint(ui.Out, "\033[?1049h\033[2J\033[H")
 	defer fmt.Fprint(ui.Out, "\033[?1049l\033[?25h")
 
@@ -431,8 +546,8 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		targetFP:    targetFP,
 		isGroup:     isGroup,
 		members:     members,
-		ttlSetting:  "24 Hours",
-		burnSetting: "Disabled",
+		ttlSetting:  "300s",
+		burnSetting: "ON",
 		relayURL:    *relayFlag,
 		messages:    make([]ChatMessage, 0),
 		out:         ui.Out,
@@ -463,7 +578,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			if err != nil {
 				return
 			}
-			timestamp := time.Now().Format("15:04:05")
+			timestamp := time.Now().Format("15:04")
 			senderName := msg.Sender
 			if senderName == "" {
 				senderName = recipientHandles[0]
@@ -512,7 +627,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 		if err != nil {
 			state.AddMessage(ChatMessage{
-				Timestamp:  time.Now().Format("15:04:05"),
+				Timestamp:  time.Now().Format("15:04"),
 				Sender:     "SYSTEM",
 				Text:       fmt.Sprintf("Encryption error: %v", err),
 				IsOutgoing: false,
@@ -529,7 +644,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 		}
 		if err != nil {
 			state.AddMessage(ChatMessage{
-				Timestamp:  time.Now().Format("15:04:05"),
+				Timestamp:  time.Now().Format("15:04"),
 				Sender:     "SYSTEM",
 				Text:       fmt.Sprintf("Delivery failed: %v", err),
 				IsOutgoing: false,
@@ -538,7 +653,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 			continue
 		}
 
-		timestamp := time.Now().Format("15:04:05")
+		timestamp := time.Now().Format("15:04")
 		state.AddMessage(ChatMessage{
 			Timestamp:  timestamp,
 			Sender:     localIdFile.Handle,
