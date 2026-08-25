@@ -281,10 +281,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 
 		if text == "/f" || text == "/file" || text == "/attach" || text == "/sendfile" {
 			isFileCmd = true
-			fmt.Fprintf(ui.Out, "\n%s┌────────────────────────── 📁 ATTACH ENCRYPTED FILE ──────────────────────────┐%s\n", ColorBold+ColorYellow, ColorReset)
-			fmt.Fprintf(ui.Out, "%s│ Enter file path to encrypt & send (e.g. ./image.png | C:\\report.pdf):       │%s\n", ColorDim+ColorWhite, ColorReset)
-			fmt.Fprintf(ui.Out, "%s└───────────────────────────────────────────────────────────────────────────────┘%s\n", ColorBold+ColorYellow, ColorReset)
-			fmt.Fprintf(ui.Out, "%s  File Path > %s", ColorBold+ColorCyan, ColorReset)
+			fmt.Fprintf(ui.Out, "%s[📁 ATTACH FILE]%s Path: ", ColorBold+ColorYellow, ColorReset)
 			if scanner.Scan() {
 				filePath = strings.TrimSpace(scanner.Text())
 			}
@@ -293,6 +290,7 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 				promptPrompt()
 				continue
 			}
+			fmt.Fprintf(ui.Out, "\033[1A\r\033[K")
 		} else if strings.HasPrefix(text, "/f ") || strings.HasPrefix(text, "/file ") || strings.HasPrefix(text, "/attach ") || strings.HasPrefix(text, "/sendfile ") {
 			isFileCmd = true
 			parts := strings.SplitN(text, " ", 2)
