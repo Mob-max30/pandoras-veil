@@ -484,25 +484,63 @@ function renderActiveConversation() {
 
 // 5. Append Message Bubble
 function appendBubble(msg) {
+    // Auto-detect JSON file payloads in msg.text if not already flagged
+    if (!msg.isFile && typeof msg.text === 'string' && (msg.text.includes('"__pv_file"') || msg.text.includes('"is_file"'))) {
+        try {
+            const parsed = JSON.parse(msg.text);
+            if (parsed.__pv_file || parsed.is_file) {
+                msg.isFile = true;
+                msg.fileName = parsed.name || parsed.filename || 'attachment';
+                msg.fileSize = parsed.size || '';
+                msg.fileType = parsed.type || '';
+                msg.fileData = parsed.data || (parsed.data_b64 ? `data:application/octet-stream;base64,${parsed.data_b64}` : '');
+            }
+        } catch (e) {}
+    }
+
     const groupEl = document.createElement('div');
     groupEl.id = msg.id || ('msg_' + Date.now());
     groupEl.className = `pv-bubble-group ${msg.isOutgoing ? 'outgoing' : 'incoming'}`;
 
     if (msg.isFile) {
-        // Render File Card with Download Capability
+        const isImage = (msg.fileType && msg.fileType.startsWith('image/')) ||
+                        (msg.fileName && msg.fileName.match(/\.(jpeg|jpg|png|gif|webp|svg|bmp)$/i));
+
         const fileCard = document.createElement('div');
         fileCard.className = 'pv-file-card';
         fileCard.style.cursor = msg.fileData ? 'pointer' : 'default';
-        fileCard.innerHTML = `
-            <div class="pv-file-icon-box">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            </div>
-            <div class="pv-file-meta">
-                <div class="pv-file-name">${msg.fileName || 'file'}</div>
-                <div class="pv-file-size">${msg.fileSize || 'Attachment'}</div>
-                <div class="pv-file-status">${msg.fileData ? '⬇ Click to download' : '✓ Transmitted'}</div>
-            </div>
-        `;
+
+        if (isImage && msg.fileData) {
+            fileCard.style.flexDirection = 'column';
+            fileCard.style.alignItems = 'flex-start';
+            fileCard.style.padding = '10px';
+            fileCard.style.maxWidth = '300px';
+
+            fileCard.innerHTML = `
+                <div style="width:100%; max-height:220px; overflow:hidden; border-radius:10px; margin-bottom:8px; background:#07120e; display:flex; align-items:center; justify-content:center;">
+                    <img src="${msg.fileData}" alt="${msg.fileName || 'image'}" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:8px; display:block;">
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
+                    <div class="pv-file-meta" style="flex:1; overflow:hidden;">
+                        <div class="pv-file-name" style="font-size:0.86rem;">${msg.fileName || 'image.jpeg'}</div>
+                        <div class="pv-file-size" style="font-size:0.74rem;">${msg.fileSize || 'Image file'}</div>
+                    </div>
+                    <div class="pv-file-status" style="font-weight:700; color:var(--pv-emerald-light); font-size:0.8rem; flex-shrink:0;">⬇ Download</div>
+                </div>
+            `;
+        } else {
+            fileCard.innerHTML = `
+                <div class="pv-file-icon-box">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+                <div class="pv-file-meta">
+                    <div class="pv-file-name">${msg.fileName || 'file'}</div>
+                    <div class="pv-file-size">${msg.fileSize || 'Attachment'}</div>
+                    <div class="pv-file-status">${msg.fileData ? '⬇ Click to download' : '✓ Transmitted'}</div>
+                </div>
+            `;
+        }
+
         if (msg.fileData) {
             fileCard.onclick = () => {
                 const a = document.createElement('a');

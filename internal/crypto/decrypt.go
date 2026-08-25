@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"filippo.io/age"
 )
@@ -50,9 +51,29 @@ func Decrypt(ciphertext []byte, identity *age.X25519Identity) ([]byte, error) {
 func DecodeFilePayload(plaintext []byte) (filename string, data []byte, isFile bool) {
 	trimmed := bytes.TrimSpace(plaintext)
 	var fp FilePayload
-	if err := json.Unmarshal(trimmed, &fp); err == nil && fp.IsFile && fp.DataB64 != "" {
-		if decoded, err := base64.StdEncoding.DecodeString(fp.DataB64); err == nil {
-			return fp.Filename, decoded, true
+	if err := json.Unmarshal(trimmed, &fp); err == nil && (fp.IsFile || fp.IsFileAlt) {
+		name := fp.Filename
+		if name == "" {
+			name = fp.NameAlt
+		}
+		if name == "" {
+			name = "received_file"
+		}
+
+		rawB64 := fp.DataB64
+		if rawB64 == "" && fp.DataURL != "" {
+			// Strip data URL scheme (e.g. data:image/jpeg;base64,...)
+			if idx := strings.Index(fp.DataURL, ","); idx != -1 {
+				rawB64 = fp.DataURL[idx+1:]
+			} else {
+				rawB64 = fp.DataURL
+			}
+		}
+
+		if rawB64 != "" {
+			if decoded, err := base64.StdEncoding.DecodeString(rawB64); err == nil {
+				return name, decoded, true
+			}
 		}
 	}
 	return "", plaintext, false
