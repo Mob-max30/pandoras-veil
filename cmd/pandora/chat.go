@@ -281,7 +281,10 @@ func runChat(args []string, ui *UI, apiClient client.RelayClient) int {
 
 		if text == "/f" || text == "/file" || text == "/attach" || text == "/sendfile" {
 			isFileCmd = true
-			fmt.Fprintf(ui.Out, "%s[📁 ATTACH FILE]%s Enter file path to send (e.g. ./image.png or ./report.pdf): ", ColorYellow, ColorReset)
+			fmt.Fprintf(ui.Out, "\n%s┌────────────────────────── 📁 ATTACH ENCRYPTED FILE ──────────────────────────┐%s\n", ColorBold+ColorYellow, ColorReset)
+			fmt.Fprintf(ui.Out, "%s│ Enter file path to encrypt & send (e.g. ./image.png | C:\\report.pdf):       │%s\n", ColorDim+ColorWhite, ColorReset)
+			fmt.Fprintf(ui.Out, "%s└───────────────────────────────────────────────────────────────────────────────┘%s\n", ColorBold+ColorYellow, ColorReset)
+			fmt.Fprintf(ui.Out, "%s  File Path > %s", ColorBold+ColorCyan, ColorReset)
 			if scanner.Scan() {
 				filePath = strings.TrimSpace(scanner.Text())
 			}
