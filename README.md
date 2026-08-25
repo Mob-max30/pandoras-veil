@@ -39,14 +39,14 @@ Clone the repository and install the `pv` command globally:
 
 #### On Windows (PowerShell):
 ```powershell
-git clone https://github.com/Mob-max30/pandoras-veil.git
+git clone -b develop https://github.com/Mob-max30/pandoras-veil.git
 cd pandoras-veil
 go build -o "$env:GOPATH\bin\pv.exe" ./cmd/pandora
 ```
 
 #### On Linux / macOS (Bash / Zsh):
 ```bash
-git clone https://github.com/Mob-max30/pandoras-veil.git
+git clone -b develop https://github.com/Mob-max30/pandoras-veil.git
 cd pandoras-veil
 go build -o /usr/local/bin/pv ./cmd/pandora
 ```
