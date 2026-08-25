@@ -102,50 +102,49 @@
         </div>
       </section>
 
-      <!-- RIGHT COLUMN: SECRET DEPOSIT & POLICY INSPECTOR -->
+      <!-- RIGHT COLUMN: SECURITY & POLICY INSPECTOR -->
       <aside class="right-column">
         <div class="cyber-box inspector-box">
-          <div class="box-header">── SECRET DEPOSIT & POLICY INSPECTOR ──</div>
+          <div class="box-header">SECURITY &amp; POLICY</div>
           <div class="box-body">
             <div class="policy-badge">POLICY: BURST_MODE_ALPHA</div>
           </div>
         </div>
 
         <div class="cyber-box deposit-box">
-          <div class="box-header">── DEPOSIT OBJECT ──</div>
+          <div class="box-header">TTL EXPIRATION</div>
           <div class="box-body">
-            <div class="object-id">Auth_Key_74</div>
-            <div class="ttl-label">TTL EXPIRATION</div>
+            <div class="object-id">Secret Envelope Lifecycle</div>
             <div class="ttl-selector">
-              <button class="ttl-btn" data-ttl="60">[ 60s ]</button>
-              <button class="ttl-btn active" data-ttl="300">[ *300s* ]</button>
-              <button class="ttl-btn" data-ttl="3600">[ 1h ]</button>
-              <button class="ttl-btn" data-ttl="86400">[ 24h ]</button>
+              <button class="ttl-btn" data-ttl="60">60s</button>
+              <button class="ttl-btn active" data-ttl="300">300s</button>
+              <button class="ttl-btn" data-ttl="3600">1h</button>
+              <button class="ttl-btn" data-ttl="86400">24h</button>
             </div>
           </div>
         </div>
 
         <div class="cyber-box burn-box">
-          <div class="box-header">── BURN-AFTER-READING ──</div>
+          <div class="box-header">BURN-AFTER-READING</div>
           <div class="box-body">
             <div class="burn-row">
-              <span class="burn-title">Redis GETDEL</span>
+              <span class="burn-title">Atomic GETDEL</span>
               <label class="toggle-switch">
                 <input type="checkbox" id="burn-toggle" checked>
                 <span class="slider round"></span>
               </label>
             </div>
-            <div class="burn-status">[ <span class="green" id="burn-text">*ON*</span> | OFF ]</div>
+            <div class="burn-status-pill armed" id="burn-pill">⚡ ARMED (Self-Destruct)</div>
           </div>
         </div>
 
         <div class="cyber-box key-box">
-          <div class="box-header">── KEY METADATA ──</div>
+          <div class="box-header">KEY METADATA</div>
           <div class="box-body">
-            <div class="field"><span class="label">Created:</span> <span class="val">PV-PRANAV ..</span></div>
-            <div class="field"><span class="label">Expires:</span> <span class="val">12-05-2026 ..</span></div>
-            <div class="field"><span class="label">Recipient:</span> <span class="val" id="recip-meta">PV-UJWAL ..</span></div>
-            <div class="field"><span class="label">Cipher:</span> <span class="val green">AES-256 (age)</span></div>
+            <div class="field"><span class="label">Host:</span> <span class="val cyan" id="meta-host">PV-PRANAV</span></div>
+            <div class="field"><span class="label">Target:</span> <span class="val green" id="recip-meta">#Development</span></div>
+            <div class="field"><span class="label">Cipher:</span> <span class="val yellow">filippo.io/age</span></div>
+            <div class="field"><span class="label">Verification:</span> <span class="val green">🔒 Verified</span></div>
           </div>
         </div>
       </aside>

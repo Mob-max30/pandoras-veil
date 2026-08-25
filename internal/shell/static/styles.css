@@ -248,20 +248,50 @@ body {
 }
 
 .ttl-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--text-dim);
   color: var(--text-dim);
-  padding: 3px 6px;
+  padding: 4px 8px;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   cursor: pointer;
   font-family: inherit;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  flex: 1;
+  text-align: center;
 }
 
 .ttl-btn.active {
   border-color: var(--green-bright);
   color: var(--green-bright);
+  background: rgba(0, 255, 136, 0.15);
   font-weight: 700;
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+}
+
+.burn-status-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.burn-status-pill.armed {
+  background: rgba(255, 0, 127, 0.15);
+  border: 1px solid var(--magenta-bright);
+  color: var(--magenta-bright);
+  box-shadow: 0 0 8px rgba(255, 0, 127, 0.2);
+}
+
+.burn-status-pill.inactive {
+  background: rgba(139, 148, 158, 0.15);
+  border: 1px solid var(--text-dim);
+  color: var(--text-dim);
 }
 
 .burn-row {

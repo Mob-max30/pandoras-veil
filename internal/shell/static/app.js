@@ -38,8 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Burn Toggle
   burnToggle.addEventListener('change', () => {
     isBurnActive = burnToggle.checked;
-    burnText.textContent = isBurnActive ? '*ON*' : 'OFF';
-    burnText.className = isBurnActive ? 'green' : 'dim';
+    const burnPill = document.getElementById('burn-pill');
+    if (burnPill) {
+      if (isBurnActive) {
+        burnPill.textContent = '⚡ ARMED (Self-Destruct)';
+        burnPill.className = 'burn-status-pill armed';
+      } else {
+        burnPill.textContent = '⚪ INACTIVE';
+        burnPill.className = 'burn-status-pill inactive';
+      }
+    }
   });
 
   function renderCurrentChannel() {
